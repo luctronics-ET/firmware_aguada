@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Dashboard API</title>
+</head>
+<body>
+  <h1>Testing Dashboard API Integration</h1>
+  <div id="result"></div>
+  
+  <script>
+    async function test() {
+      try {
+        const response = await fetch('/api/get_sensors_data.php');
+        const data = await response.json();
+        
+        document.getElementById('result').innerHTML = `
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+          <p>Success: ${data.success}</p>
+          <p>Sensors Count: ${data.count}</p>
+        `;
+      } catch (e) {
+        document.getElementById('result').innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+      }
+    }
+    test();
+  </script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!-- Header Component -->
+<!-- Common header with breadcrumb, date/time, and notifications -->
+<header class="sticky top-0 z-30 bg-white border-b border-gray-200 lg:ml-64">
+  <div class="px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16">
+      
+      <!-- Left: Breadcrumb -->
+      <div class="flex items-center gap-4">
+        <h2 id="page-title" class="text-xl font-bold text-gray-800">Dashboard</h2>
+        <nav class="hidden md:flex items-center gap-2 text-sm text-gray-500">
+          <span id="breadcrumb-home">AGUADA</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span id="breadcrumb-current" class="text-gray-800 font-medium">Dashboard</span>
+        </nav>
+      </div>
+
+      <!-- Right: Date/Time, Alerts, Status -->
+      <div class="flex items-center gap-4">
+        
+        <!-- Current Date/Time -->
+        <div class="hidden sm:flex items-center gap-2 text-sm text-gray-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span id="header-datetime">--/--/---- --:--</span>
+        </div>
+
+        <!-- Notifications -->
+        <div class="relative">
+          <button id="notifications-btn" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span id="notifications-badge" class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full hidden"></span>
+          </button>
+
+          <!-- Notifications Dropdown -->
+          <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
+            <div class="px-4 py-3 border-b border-gray-200">
+              <h3 class="text-sm font-semibold text-gray-800">Notificações</h3>
+            </div>
+            <div id="notifications-list" class="max-h-96 overflow-y-auto">
+              <p class="px-4 py-8 text-sm text-gray-500 text-center">Nenhuma notificação</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Status Indicator -->
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm font-medium">
+          <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span class="hidden sm:inline">Online</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</header>
+
+<script>
+// Header Component Logic
+(function() {
+  
+  // Update date/time
+  function updateDateTime() {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = now.toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    const el = document.getElementById('header-datetime');
+    if (el) {
+      el.textContent = `${dateStr} ${timeStr}`;
+    }
+  }
+
+  // Set page title and breadcrumb
+  function setPageInfo() {
+    const currentPage = window.location.pathname.split('/').pop() || 'dashboard.php';
+    
+    const pageTitles = {
+      'dashboard.php': 'Dashboard',
+      'scada.html': 'SCADA',
+      'mapa.html': 'Mapa da Rede',
+      'consumo.html': 'Consumo',
+      'relatorios_lista.html': 'Relatórios',
+      'relatorio_servico.html': 'Relatório de Serviço',
+      'manutencao.html': 'Manutenção',
+      'config_sensores.html': 'Configurações'
+    };
+    
+    const title = pageTitles[currentPage] || 'AGUADA';
+    
+    const titleEl = document.getElementById('page-title');
+    const breadcrumbEl = document.getElementById('breadcrumb-current');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (breadcrumbEl) breadcrumbEl.textContent = title;
+    
+    // Update page title
+    document.title = `${title} - CMASM AGUADA`;
+  }
+
+  // Notifications dropdown toggle
+  const notifBtn = document.getElementById('notifications-btn');
+  const notifDropdown = document.getElementById('notifications-dropdown');
+
+  if (notifBtn && notifDropdown) {
+    notifBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifDropdown.classList.toggle('hidden');
+    });
+
+    // Close on outside click
+    document.addEventListener('click', () => {
+      if (!notifDropdown.classList.contains('hidden')) {
+        notifDropdown.classList.add('hidden');
+      }
+    });
+
+    notifDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // Load notifications
+  function loadNotifications() {
+    fetch('/api/scada_data.php?action=alerts')
+      .then(res => res.json())
+      .then(data => {
+        const badge = document.getElementById('notifications-badge');
+        const list = document.getElementById('notifications-list');
+        
+        if (data.alerts && data.alerts.length > 0) {
+          // Show badge
+          if (badge) badge.classList.remove('hidden');
+          
+          // Render notifications
+          if (list) {
+            list.innerHTML = data.alerts.map(alert => `
+              <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start gap-3">
+                  <div class="w-2 h-2 bg-yellow-500 rounded-full mt-1.5"></div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800">${alert.title || 'Alerta'}</p>
+                    <p class="text-xs text-gray-600 mt-1">${alert.message}</p>
+                    <p class="text-xs text-gray-400 mt-1">${alert.time || 'Agora'}</p>
+                  </div>
+                </div>
+              </div>
+            `).join('');
+          }
+        } else {
+          if (badge) badge.classList.add('hidden');
+        }
+      })
+      .catch(err => console.log('Failed to load notifications:', err));
+  }
+
+  // Initialize
+  setPageInfo();
+  updateDateTime();
+  loadNotifications();
+  
+  // Update every minute
+  setInterval(updateDateTime, 60000);
+  
+  // Check notifications every 30 seconds
+  setInterval(loadNotifications, 30000);
+
+})();
+</script>

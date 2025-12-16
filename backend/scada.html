@@ -1,1088 +1,449 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCADA Hidráulico - Aguada</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            overflow-x: hidden;
-        }
-        
-        /* HEADER */
-        .header {
-            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header h1 {
-            font-size: 2em;
-            color: #4ade80;
-        }
-        .header-controls {
-            display: flex;
-            gap: 15px;
-        }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .btn-primary { background: #4ade80; color: #000; }
-        .btn-primary:hover { background: #22c55e; transform: translateY(-2px); }
-        .btn-secondary { background: #3b82f6; color: #fff; }
-        .btn-danger { background: #ef4444; color: #fff; }
-        
-        /* LAYOUT */
-        .container {
-            display: grid;
-            grid-template-columns: 300px 1fr 350px;
-            height: calc(100vh - 80px);
-            gap: 0;
-        }
-        
-        /* SIDEBAR ESQUERDA */
-        .sidebar-left {
-            background: #16213e;
-            padding: 20px;
-            overflow-y: auto;
-            border-right: 1px solid #0f3460;
-        }
-        .sidebar-section {
-            margin-bottom: 25px;
-        }
-        .sidebar-section h3 {
-            color: #4ade80;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-            border-bottom: 2px solid #0f3460;
-            padding-bottom: 8px;
-        }
-        .local-item {
-            padding: 12px;
-            background: #0f3460;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border-left: 4px solid transparent;
-        }
-        .local-item:hover {
-            background: #1a4068;
-            border-left-color: #4ade80;
-        }
-        .local-item.active {
-            background: #1a4068;
-            border-left-color: #4ade80;
-        }
-        .local-item-name {
-            font-weight: 600;
-            font-size: 1.1em;
-            margin-bottom: 5px;
-        }
-        .local-item-stats {
-            font-size: 0.9em;
-            color: #94a3b8;
-        }
-        .anomaly-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 0.85em;
-            font-weight: 600;
-            margin-left: 8px;
-        }
-        .anomaly-critico { background: #ef4444; color: white; }
-        .anomaly-aviso { background: #fbbf24; color: #000; }
-        
-        /* CANVAS CENTRAL */
-        .canvas-area {
-            background: #0a0e27;
-            position: relative;
-            overflow: auto;
-        }
-        #scada-canvas {
-            width: 100%;
-            height: 100%;
-            cursor: grab;
-        }
-        #scada-canvas:active {
-            cursor: grabbing;
-        }
-        
-        /* PAINEL DIREITO */
-        .panel-right {
-            background: #16213e;
-            padding: 20px;
-            overflow-y: auto;
-            border-left: 1px solid #0f3460;
-        }
-        .panel-section {
-            background: #0f3460;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        .panel-section h3 {
-            color: #4ade80;
-            margin-bottom: 12px;
-            font-size: 1.1em;
-        }
-        .element-card {
-            background: #1a4068;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
-        }
-        .element-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .element-name {
-            font-weight: 600;
-            color: #fff;
-        }
-        .element-status {
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.85em;
-            font-weight: 600;
-        }
-        .status-ativo { background: #4ade80; color: #000; }
-        .status-inativo { background: #6b7280; color: #fff; }
-        .status-falha { background: #ef4444; color: #fff; }
-        .status-aberta { background: #3b82f6; color: #fff; }
-        .status-fechada { background: #6b7280; color: #fff; }
-        .status-ligada { background: #4ade80; color: #000; }
-        .status-desligada { background: #6b7280; color: #fff; }
-        
-        .element-data {
-            font-size: 0.9em;
-            color: #cbd5e1;
-        }
-        .element-data-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-        }
-        .element-controls {
-            display: flex;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 0.85em;
-        }
-        
-        /* ALERTAS */
-        .alert-item {
-            background: #1a4068;
-            border-left: 4px solid;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-        .alert-critico { border-left-color: #ef4444; }
-        .alert-aviso { border-left-color: #fbbf24; }
-        .alert-info { border-left-color: #3b82f6; }
-        .alert-header {
-            display: flex;
-            justify-content: space-between;
-            font-weight: 600;
-            margin-bottom: 6px;
-        }
-        .alert-body {
-            font-size: 0.9em;
-            color: #cbd5e1;
-        }
-        .alert-time {
-            font-size: 0.8em;
-            color: #94a3b8;
-            margin-top: 4px;
-        }
-        
-        /* MODAL */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: #16213e;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .modal-close {
-            background: #ef4444;
-            border: none;
-            color: white;
-            font-size: 1.5em;
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            cursor: pointer;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #cbd5e1;
-            font-weight: 600;
-        }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #0f3460;
-            border-radius: 6px;
-            background: #0a0e27;
-            color: #fff;
-            font-size: 1em;
-        }
-        
-        /* STATUS BAR */
-        .status-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #0f3460;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.9em;
-            z-index: 100;
-        }
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-        .status-online { background: #4ade80; }
-        .status-offline { background: #ef4444; }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCADA - CMASM AGUADA</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/animations.css">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #1a1a2e;
+      color: #ffffff;
+    }
+    
+    /* SCADA Dark Theme */
+    .scada-panel {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .scada-widget {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+    
+    .scada-widget:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(59, 130, 246, 0.5);
+      transform: translateY(-2px);
+    }
+    
+    /* Tank visualization */
+    .tank-container {
+      position: relative;
+      width: 100%;
+      max-width: 200px;
+      margin: 0 auto;
+    }
+    
+    .tank-fill {
+      transition: height 1s ease;
+      border-radius: 8px 8px 0 0;
+    }
+    
+    /* Status indicators */
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      box-shadow: 0 0 10px currentColor;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-ok { background: #22c55e; }
+    .status-alert { background: #f59e0b; }
+    .status-critical { background: #ef4444; }
+    .status-offline { background: #6b7280; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    /* Value display */
+    .value-large {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* Grid lines for technical look */
+    .grid-bg {
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+  </style>
 </head>
-<body>
-    <div class="header">
-        <h1>🌊 SCADA Hidráulico</h1>
-        <div class="header-controls">
-            <button class="btn btn-primary" onclick="refreshData()">🔄 Atualizar</button>
-            <button class="btn btn-secondary" onclick="openModal('add-local')">📍 Novo Local</button>
-            <button class="btn btn-secondary" onclick="openModal('add-element')">➕ Novo Elemento</button>
-            <button class="btn btn-secondary" onclick="openModal('add-sensor')">📡 Novo Sensor</button>
-        </div>
-    </div>
+<body class="bg-gray-900 grid-bg">
 
-    <div class="container">
-        <!-- SIDEBAR ESQUERDA: Locais e Filtros -->
-        <div class="sidebar-left">
-            <div class="sidebar-section">
-                <h3>📍 Locais</h3>
-                <div id="locais-list">
-                    <!-- Preenchido dinamicamente -->
-                </div>
+  <!-- Include Navigation -->
+  <div id="navigation-container"></div>
+
+  <!-- Main Content -->
+  <div class="lg:ml-64">
+    
+    <!-- Include Header -->
+    <div id="header-container"></div>
+
+    <!-- SCADA Content -->
+    <main class="p-4 sm:p-6 lg:p-8">
+
+      <!-- System Status Bar -->
+      <div class="scada-panel rounded-lg p-4 mb-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+            <span class="text-lg font-semibold">SISTEMA OPERACIONAL</span>
+          </div>
+          <div class="flex items-center gap-6 text-sm">
+            <div>
+              <span class="text-gray-400">Última Atualização:</span>
+              <span class="text-white font-mono ml-2" id="last-update">--:--:--</span>
             </div>
-            
-            <div class="sidebar-section">
-                <h3>🔍 Filtros</h3>
-                <div class="form-group">
-                    <label>Tipo de Elemento:</label>
-                    <select id="filter-tipo" onchange="filterElements()">
-                        <option value="">Todos</option>
-                        <option value="armazenamento">Armazenamento</option>
-                        <option value="transporte">Transporte</option>
-                        <option value="controle">Controle</option>
-                        <option value="medicao">Medição</option>
-                        <option value="pressao">Pressão</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Estado:</label>
-                    <select id="filter-estado" onchange="filterElements()">
-                        <option value="">Todos</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="inativo">Inativo</option>
-                        <option value="manutencao">Manutenção</option>
-                        <option value="falha">Falha</option>
-                    </select>
-                </div>
+            <div>
+              <span class="text-gray-400">Taxa Atualização:</span>
+              <span class="text-white font-mono ml-2">10s</span>
             </div>
+            <button onclick="toggleFullscreen()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm transition-colors">
+              Tela Cheia
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main SCADA Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-6" id="scada-grid">
+        <!-- Sensors will be dynamically loaded -->
+      </div>
+
+      <!-- System Overview -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        
+        <!-- Total Volume -->
+        <div class="scada-widget rounded-lg p-6">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-gray-400 text-sm uppercase">Volume Total</span>
+            <span class="status-indicator status-ok"></span>
+          </div>
+          <div class="value-large text-blue-400" id="total-volume">0</div>
+          <div class="text-gray-400 text-sm mt-1">m³ / 170 m³</div>
         </div>
 
-        <!-- CANVAS CENTRAL: Diagrama SCADA -->
-        <div class="canvas-area">
-            <canvas id="scada-canvas"></canvas>
+        <!-- Average Level -->
+        <div class="scada-widget rounded-lg p-6">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-gray-400 text-sm uppercase">Nível Médio</span>
+            <span class="status-indicator status-ok"></span>
+          </div>
+          <div class="value-large text-green-400" id="avg-level">0</div>
+          <div class="text-gray-400 text-sm mt-1">%</div>
         </div>
 
-        <!-- PAINEL DIREITO: Detalhes e Controles -->
-        <div class="panel-right">
-            <div class="panel-section">
-                <h3>⚠️ Alertas Ativos</h3>
-                <div id="alertas-list">
-                    <!-- Preenchido dinamicamente -->
-                </div>
+        <!-- Active Alerts -->
+        <div class="scada-widget rounded-lg p-6">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-gray-400 text-sm uppercase">Alertas Ativos</span>
+            <span class="status-indicator" id="alerts-indicator"></span>
+          </div>
+          <div class="value-large text-red-400" id="active-alerts">0</div>
+          <div class="text-gray-400 text-sm mt-1">Notificações</div>
+        </div>
+
+      </div>
+
+      <!-- Alarm Log -->
+      <div class="scada-widget rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          Log de Alarmes
+        </h3>
+        <div class="space-y-2" id="alarm-log">
+          <div class="flex items-center gap-3 text-sm text-gray-400 py-2 border-b border-gray-700">
+            <span class="font-mono">--:--:--</span>
+            <span>Sistema iniciado</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Load Components
+    fetch('components/navigation.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('navigation-container').innerHTML = html;
+      });
+
+    fetch('components/header.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('header-container').innerHTML = html;
+      });
+
+    // Sensor Data
+    let sensorsData = [
+      {
+        id: 'RCON',
+        name: 'Reservatório Condomínio',
+        level: 75,
+        volume: 37500,
+        capacity: 50000,
+        distance_cm: 50,
+        status: 'ok',
+        lastUpdate: new Date()
+      },
+      {
+        id: 'RCAV',
+        name: 'Reservatório Cavalinho',
+        level: 45,
+        volume: 13500,
+        capacity: 30000,
+        distance_cm: 110,
+        status: 'ok',
+        lastUpdate: new Date()
+      },
+      {
+        id: 'RCB3',
+        name: 'Reservatório B03',
+        level: 18,
+        volume: 7200,
+        capacity: 40000,
+        distance_cm: 164,
+        status: 'alert',
+        lastUpdate: new Date()
+      },
+      {
+        id: 'CIE1',
+        name: 'Captação Ilha Engenho 01',
+        level: 85,
+        volume: 21250,
+        capacity: 25000,
+        distance_cm: 30,
+        status: 'ok',
+        lastUpdate: new Date()
+      },
+      {
+        id: 'CIE2',
+        name: 'Captação Ilha Engenho 02',
+        level: 70,
+        volume: 17500,
+        capacity: 25000,
+        distance_cm: 60,
+        status: 'ok',
+        lastUpdate: new Date()
+      }
+    ];
+
+    // Get level color
+    function getLevelColor(level) {
+      if (level < 20) return '#ef4444';
+      if (level < 40) return '#f59e0b';
+      if (level < 60) return '#eab308';
+      if (level < 80) return '#22c55e';
+      return '#3b82f6';
+    }
+
+    // Get status class
+    function getStatusClass(status) {
+      const classes = {
+        'ok': 'status-ok',
+        'alert': 'status-alert',
+        'critical': 'status-critical',
+        'offline': 'status-offline'
+      };
+      return classes[status] || 'status-offline';
+    }
+
+    // Render SCADA widget
+    function renderScadaWidget(sensor) {
+      const color = getLevelColor(sensor.level);
+      const tankHeight = 150;
+      const fillHeight = (sensor.level / 100) * tankHeight;
+
+      return `
+        <div class="scada-widget rounded-lg p-4 fade-in-up">
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="font-semibold text-sm">${sensor.id}</h3>
+              <p class="text-xs text-gray-400">${sensor.name}</p>
             </div>
+            <span class="status-indicator ${getStatusClass(sensor.status)}"></span>
+          </div>
 
-            <div class="panel-section">
-                <h3>📊 Elementos Selecionados</h3>
-                <div id="elementos-detalhes">
-                    <p style="color: #94a3b8; text-align: center;">
-                        Clique em um elemento no diagrama para ver detalhes
-                    </p>
-                </div>
+          <!-- Tank Visualization -->
+          <div class="tank-container mb-3">
+            <div class="relative" style="width: 80px; height: ${tankHeight}px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; overflow: hidden; margin: 0 auto;">
+              <!-- Fill -->
+              <div class="tank-fill absolute bottom-0 left-0 right-0" 
+                   style="height: ${fillHeight}px; background: ${color}; opacity: 0.8;"></div>
+              <!-- Level text -->
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="text-2xl font-bold" style="text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${sensor.level}%</span>
+              </div>
             </div>
+          </div>
 
-            <div class="panel-section">
-                <h3>🔗 Conexões</h3>
-                <div id="conexoes-list">
-                    <!-- Preenchido dinamicamente -->
-                </div>
+          <!-- Details -->
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Volume:</span>
+              <span class="font-mono text-white">${(sensor.volume/1000).toFixed(1)} m³</span>
             </div>
-        </div>
-    </div>
-
-    <!-- STATUS BAR -->
-    <div class="status-bar">
-        <div class="status-item">
-            <span class="status-dot status-online"></span>
-            <span>Sistema Online</span>
-        </div>
-        <div class="status-item">
-            <span>Sensores: <strong id="status-sensores">0/0</strong></span>
-        </div>
-        <div class="status-item">
-            <span>Anomalias: <strong id="status-anomalias">0</strong></span>
-        </div>
-        <div class="status-item">
-            <span>Última atualização: <strong id="status-update">--:--:--</strong></span>
-        </div>
-    </div>
-
-    <!-- MODAL ADICIONAR LOCAL -->
-    <div class="modal" id="modal-add-local">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📍 Novo Local</h2>
-                <button class="modal-close" onclick="closeModal('add-local')">×</button>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Capacidade:</span>
+              <span class="font-mono text-white">${(sensor.capacity/1000).toFixed(0)} m³</span>
             </div>
-            <form id="form-add-local" onsubmit="submitAddLocal(event)">
-                <div class="form-group">
-                    <label>Nome: *</label>
-                    <input type="text" name="nome" required placeholder="Ex: Castelo de Consumo">
-                </div>
-                <div class="form-group">
-                    <label>Descrição:</label>
-                    <textarea name="descricao" rows="2" placeholder="Descrição detalhada do local"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Latitude:</label>
-                    <input type="number" step="0.00000001" name="latitude" placeholder="-23.550520">
-                </div>
-                <div class="form-group">
-                    <label>Longitude:</label>
-                    <input type="number" step="0.00000001" name="longitude" placeholder="-46.633308">
-                </div>
-                <div class="form-group">
-                    <label>Altitude (m):</label>
-                    <input type="number" step="0.01" name="altitude_m" placeholder="120.5">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Criar Local</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- MODAL ADICIONAR ELEMENTO -->
-    <div class="modal" id="modal-add-element">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>➕ Novo Elemento</h2>
-                <button class="modal-close" onclick="closeModal('add-element')">×</button>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Distância:</span>
+              <span class="font-mono text-white">${sensor.distance_cm} cm</span>
             </div>
-            <form id="form-add-element" onsubmit="submitAddElement(event)">
-                <div class="form-group">
-                    <label>Alias (Código Único): *</label>
-                    <input type="text" name="alias" required placeholder="Ex: RES_CASTELO_CONSUMO" style="text-transform: uppercase;">
-                    <small style="color: #94a3b8;">Use convenção: TIPO_LOCAL_FUNCAO</small>
-                </div>
-                <div class="form-group">
-                    <label>Nome: *</label>
-                    <input type="text" name="nome" required placeholder="Ex: Reservatório Consumo">
-                </div>
-                <div class="form-group">
-                    <label>Tipo: *</label>
-                    <select name="tipo_id" required id="select-tipo-elemento">
-                        <!-- Preenchido dinamicamente -->
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Local: *</label>
-                    <select name="local_id" required id="select-local-elemento">
-                        <!-- Preenchido dinamicamente -->
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Rede de Água:</label>
-                    <select name="rede_agua_id" id="select-rede-elemento">
-                        <option value="">Nenhuma</option>
-                        <!-- Preenchido dinamicamente -->
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Capacidade (L):</label>
-                    <input type="number" name="capacidade_l" placeholder="80000">
-                </div>
-                <div class="form-group">
-                    <label>Altura (m):</label>
-                    <input type="number" step="0.01" name="altura_m" placeholder="4.5">
-                </div>
-                <div class="form-group">
-                    <label>Diâmetro (cm):</label>
-                    <input type="number" step="0.01" name="diametro_cm" placeholder="200">
-                </div>
-                <div class="form-group">
-                    <label>Fabricante:</label>
-                    <input type="text" name="fabricante" placeholder="Ex: Tigre, Fortlev">
-                </div>
-                <div class="form-group">
-                    <label>Observações:</label>
-                    <textarea name="observacoes" rows="3" placeholder="Notas adicionais"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Criar Elemento</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- MODAL ADICIONAR SENSOR -->
-    <div class="modal" id="modal-add-sensor">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📡 Novo Sensor</h2>
-                <button class="modal-close" onclick="closeModal('add-sensor')">×</button>
+            <div class="flex justify-between border-t border-gray-700 pt-2 mt-2">
+              <span class="text-gray-400">Atualizado:</span>
+              <span class="font-mono text-gray-300">${sensor.lastUpdate.toLocaleTimeString('pt-BR')}</span>
             </div>
-            <form id="form-add-sensor" onsubmit="submitAddSensor(event)">
-                <div class="form-group">
-                    <label>Alias: *</label>
-                    <input type="text" name="alias" required placeholder="Ex: ULTRA_CASTELO_CONSUMO" style="text-transform: uppercase;">
-                </div>
-                <div class="form-group">
-                    <label>Node ID: *</label>
-                    <input type="number" name="node_id" required min="1" max="255" placeholder="1-255">
-                </div>
-                <div class="form-group">
-                    <label>MAC Address: *</label>
-                    <input type="text" name="mac" required pattern="[0-9A-Fa-f:]{17}" placeholder="AA:BB:CC:DD:EE:FF">
-                </div>
-                <div class="form-group">
-                    <label>Tipo de Sensor: *</label>
-                    <select name="tipo_sensor" required>
-                        <option value="ultrasonic">Ultrassônico (HC-SR04)</option>
-                        <option value="pressure">Pressão</option>
-                        <option value="flow">Vazão</option>
-                        <option value="temperature">Temperatura</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Elemento Associado:</label>
-                    <select name="elemento_id" id="select-elemento-sensor">
-                        <option value="">Nenhum (configurar depois)</option>
-                        <!-- Preenchido dinamicamente -->
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Posição do Sensor:</label>
-                    <input type="text" name="posicao_sensor" placeholder="Ex: topo, base, lateral">
-                </div>
-                <div class="form-group">
-                    <label>Offset (cm):</label>
-                    <input type="number" name="offset_cm" value="20" placeholder="20">
-                </div>
-                <div class="form-group">
-                    <label>Intervalo de Leitura (s):</label>
-                    <input type="number" name="intervalo_leitura_s" value="30" placeholder="30">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Criar Sensor</button>
-            </form>
+          </div>
+
+          <!-- Action button -->
+          <button onclick="viewDetails('${sensor.id}')" 
+                  class="w-full mt-3 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-xs font-medium transition-colors">
+            Ver Detalhes
+          </button>
         </div>
-    </div>
+      `;
+    }
 
-    <script>
-        // Estado global
-        let locais = [];
-        let elementos = [];
-        let conexoes = [];
-        let anomalias = [];
-        let tiposElemento = [];
-        let redesAgua = [];
-        let selectedElement = null;
-        let canvas, ctx;
-        let canvasOffset = { x: 0, y: 0 };
-        let isDragging = false;
-        let dragStart = { x: 0, y: 0 };
+    // Render all widgets
+    function renderScada() {
+      const grid = document.getElementById('scada-grid');
+      grid.innerHTML = sensorsData.map(renderScadaWidget).join('');
+    }
 
-        // Inicialização
-        document.addEventListener('DOMContentLoaded', () => {
-            canvas = document.getElementById('scada-canvas');
-            ctx = canvas.getContext('2d');
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            
-            // Mouse events para pan
-            canvas.addEventListener('mousedown', handleMouseDown);
-            canvas.addEventListener('mousemove', handleMouseMove);
-            canvas.addEventListener('mouseup', handleMouseUp);
-            canvas.addEventListener('click', handleCanvasClick);
-            
-            loadData();
-            setInterval(refreshData, 30000); // Atualizar a cada 30s
-        });
+    // Update overview stats
+    function updateOverview() {
+      const totalVolume = sensorsData.reduce((sum, s) => sum + s.volume, 0);
+      const avgLevel = sensorsData.reduce((sum, s) => sum + s.level, 0) / sensorsData.length;
+      const alerts = sensorsData.filter(s => s.status === 'alert' || s.status === 'critical').length;
 
-        function resizeCanvas() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            drawSCADA();
+      document.getElementById('total-volume').textContent = (totalVolume / 1000).toFixed(1);
+      document.getElementById('avg-level').textContent = avgLevel.toFixed(0);
+      document.getElementById('active-alerts').textContent = alerts;
+
+      // Update alerts indicator
+      const alertsIndicator = document.getElementById('alerts-indicator');
+      if (alerts > 0) {
+        alertsIndicator.className = 'status-indicator status-alert';
+      } else {
+        alertsIndicator.className = 'status-indicator status-ok';
+      }
+
+      // Update timestamp
+      document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+    }
+
+    // Add alarm to log
+    function addAlarm(message, level = 'info') {
+      const log = document.getElementById('alarm-log');
+      const time = new Date().toLocaleTimeString('pt-BR');
+      
+      const colors = {
+        'info': 'text-blue-400',
+        'warning': 'text-yellow-400',
+        'critical': 'text-red-400'
+      };
+
+      const alarm = document.createElement('div');
+      alarm.className = `flex items-center gap-3 text-sm py-2 border-b border-gray-700 ${colors[level]}`;
+      alarm.innerHTML = `
+        <span class="font-mono">${time}</span>
+        <span>${message}</span>
+      `;
+      
+      log.insertBefore(alarm, log.firstChild);
+
+      // Keep only last 10 alarms
+      while (log.children.length > 10) {
+        log.removeChild(log.lastChild);
+      }
+    }
+
+    // View details (temporariamente desabilitado - página em desenvolvimento)
+    function viewDetails(sensorId) {
+      alert(`Detalhes do sensor ${sensorId}\\nEm desenvolvimento...\\n\\nUse a página de Relatórios para ver histórico completo.`);
+      // window.location.href = `historico.html?sensor=${sensorId}`;
+    }
+
+    // Toggle fullscreen
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Poll data
+    const POLL_INTERVAL = 10000; // 10 seconds
+
+    function pollData() {
+      // Simulate data changes
+      sensorsData.forEach(s => {
+        const oldLevel = s.level;
+        s.level = Math.max(0, Math.min(100, s.level + (Math.random() - 0.5) * 3));
+        s.volume = (s.capacity * s.level) / 100;
+        s.lastUpdate = new Date();
+
+        // Check for level changes
+        if (s.level < 20 && oldLevel >= 20) {
+          addAlarm(`${s.id}: Nível crítico atingido (${s.level.toFixed(0)}%)`, 'critical');
+          s.status = 'critical';
+        } else if (s.level < 40 && oldLevel >= 40) {
+          addAlarm(`${s.id}: Nível baixo (${s.level.toFixed(0)}%)`, 'warning');
+          s.status = 'alert';
+        } else if (s.level >= 40 && s.status !== 'ok') {
+          s.status = 'ok';
         }
+      });
 
-        async function loadData() {
-            try {
-                // Carregar dados do backend
-                const response = await fetch('/api/scada_data.php');
-                const data = await response.json();
-                
-                locais = data.locais || [];
-                elementos = data.elementos || [];
-                conexoes = data.conexoes || [];
-                anomalias = data.anomalias || [];
-                tiposElemento = data.tipos_elemento || [];
-                
-                // Carregar listas para dropdowns
-                await loadDropdownData();
-                
-                renderLocais();
-                renderAlertas();
-                drawSCADA();
-                updateStatusBar();
-            } catch (error) {
-                console.error('Erro ao carregar dados:', error);
-            }
-        }
+      renderScada();
+      updateOverview();
+    }
 
-        async function loadDropdownData() {
-            try {
-                // Carregar tipos de elemento
-                const tiposResp = await fetch('/api/gerenciar.php?action=tipos_elemento');
-                const tiposData = await tiposResp.json();
-                if (tiposData.success) {
-                    tiposElemento = tiposData.data;
-                    populateTiposElemento();
-                }
+    // Initialize
+    setTimeout(() => {
+      renderScada();
+      updateOverview();
+      addAlarm('Sistema SCADA iniciado', 'info');
+      
+      // Start polling
+      setInterval(pollData, POLL_INTERVAL);
+    }, 100);
+  </script>
 
-                // Carregar redes de água
-                const redesResp = await fetch('/api/gerenciar.php?action=redes_agua');
-                const redesData = await redesResp.json();
-                if (redesData.success) {
-                    redesAgua = redesData.data;
-                    populateRedesAgua();
-                }
-
-                // Atualizar dropdowns de locais e elementos
-                populateLocais();
-                populateElementos();
-            } catch (error) {
-                console.error('Erro ao carregar dados dos dropdowns:', error);
-            }
-        }
-
-        function populateTiposElemento() {
-            const select = document.getElementById('select-tipo-elemento');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">Selecione o tipo...</option>';
-            
-            const grouped = {};
-            tiposElemento.forEach(tipo => {
-                if (!grouped[tipo.categoria]) grouped[tipo.categoria] = [];
-                grouped[tipo.categoria].push(tipo);
-            });
-            
-            Object.keys(grouped).forEach(categoria => {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = categoria.charAt(0).toUpperCase() + categoria.slice(1);
-                grouped[categoria].forEach(tipo => {
-                    const option = document.createElement('option');
-                    option.value = tipo.id;
-                    option.textContent = tipo.nome;
-                    optgroup.appendChild(option);
-                });
-                select.appendChild(optgroup);
-            });
-        }
-
-        function populateLocais() {
-            const select = document.getElementById('select-local-elemento');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">Selecione o local...</option>';
-            locais.forEach(local => {
-                const option = document.createElement('option');
-                option.value = local.id;
-                option.textContent = local.nome;
-                select.appendChild(option);
-            });
-        }
-
-        function populateRedesAgua() {
-            const select = document.getElementById('select-rede-elemento');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">Nenhuma</option>';
-            redesAgua.forEach(rede => {
-                const option = document.createElement('option');
-                option.value = rede.id;
-                option.textContent = `${rede.nome} (${rede.qualidade_agua})`;
-                select.appendChild(option);
-            });
-        }
-
-        function populateElementos() {
-            const select = document.getElementById('select-elemento-sensor');
-            if (!select) return;
-            
-            select.innerHTML = '<option value="">Nenhum (configurar depois)</option>';
-            elementos.forEach(elem => {
-                const option = document.createElement('option');
-                option.value = elem.id;
-                option.textContent = `${elem.elemento_alias || elem.elemento_nome} (${elem.local_nome})`;
-                select.appendChild(option);
-            });
-        }
-
-        function renderLocais() {
-            const list = document.getElementById('locais-list');
-            list.innerHTML = locais.map(local => `
-                <div class="local-item" onclick="selectLocal(${local.id})">
-                    <div class="local-item-name">
-                        ${local.nome}
-                        ${local.anomalias_criticas > 0 ? '<span class="anomaly-badge anomaly-critico">' + local.anomalias_criticas + '</span>' : ''}
-                        ${local.anomalias_avisos > 0 ? '<span class="anomaly-badge anomaly-aviso">' + local.anomalias_avisos + '</span>' : ''}
-                    </div>
-                    <div class="local-item-stats">
-                        ${local.elementos_count} elementos • ${local.sensores_online}/${local.sensores_total} sensores
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderAlertas() {
-            const list = document.getElementById('alertas-list');
-            if (anomalias.length === 0) {
-                list.innerHTML = '<p style="color: #94a3b8; text-align: center;">Nenhuma anomalia ativa</p>';
-                return;
-            }
-            
-            list.innerHTML = anomalias.map(a => `
-                <div class="alert-item alert-${a.severidade}">
-                    <div class="alert-header">
-                        <span>${a.elemento_nome}</span>
-                        <span>${a.tipo}</span>
-                    </div>
-                    <div class="alert-body">${a.descricao}</div>
-                    <div class="alert-time">Há ${a.horas_aberta}h</div>
-                </div>
-            `).join('');
-        }
-
-        function drawSCADA() {
-            if (!ctx) return;
-            
-            // Limpar canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Grid background
-            ctx.strokeStyle = '#0f3460';
-            ctx.lineWidth = 1;
-            for (let x = 0; x < canvas.width; x += 50) {
-                ctx.beginPath();
-                ctx.moveTo(x + canvasOffset.x % 50, 0);
-                ctx.lineTo(x + canvasOffset.x % 50, canvas.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y < canvas.height; y += 50) {
-                ctx.beginPath();
-                ctx.moveTo(0, y + canvasOffset.y % 50);
-                ctx.lineTo(canvas.width, y + canvasOffset.y % 50);
-                ctx.stroke();
-            }
-            
-            // Desenhar conexões (tubulações)
-            conexoes.forEach(conn => {
-                drawConnection(conn);
-            });
-            
-            // Desenhar elementos
-            elementos.forEach(elem => {
-                drawElement(elem);
-            });
-        }
-
-        function drawElement(elem) {
-            const x = (elem.pos_x || Math.random() * canvas.width) + canvasOffset.x;
-            const y = (elem.pos_y || Math.random() * canvas.height) + canvasOffset.y;
-            const size = 40;
-            
-            // Cor baseada no tipo
-            let color = '#4ade80';
-            if (elem.categoria === 'transporte') color = '#3b82f6';
-            else if (elem.categoria === 'controle') color = '#fbbf24';
-            else if (elem.categoria === 'pressao') color = '#ef4444';
-            
-            // Desenhar elemento
-            ctx.fillStyle = elem.id === selectedElement?.id ? '#fff' : color;
-            ctx.beginPath();
-            ctx.arc(x, y, size/2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Texto
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(elem.nome.substring(0, 10), x, y + 5);
-            
-            // Status indicator
-            if (elem.nivel_atual) {
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px Arial';
-                ctx.fillText(`${elem.percentual_nivel}%`, x, y + size/2 + 15);
-            }
-        }
-
-        function drawConnection(conn) {
-            // Simplificado - desenhar linha entre elementos
-            const origem = elementos.find(e => e.id === conn.elemento_origem_id);
-            const destino = elementos.find(e => e.id === conn.elemento_destino_id);
-            
-            if (!origem || !destino) return;
-            
-            const x1 = (origem.pos_x || 100) + canvasOffset.x;
-            const y1 = (origem.pos_y || 100) + canvasOffset.y;
-            const x2 = (destino.pos_x || 200) + canvasOffset.x;
-            const y2 = (destino.pos_y || 200) + canvasOffset.y;
-            
-            ctx.strokeStyle = conn.ativo ? '#3b82f6' : '#6b7280';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            
-            // Seta
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            ctx.fillStyle = conn.ativo ? '#3b82f6' : '#6b7280';
-            ctx.beginPath();
-            ctx.moveTo(x2, y2);
-            ctx.lineTo(x2 - 10 * Math.cos(angle - Math.PI / 6), y2 - 10 * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(x2 - 10 * Math.cos(angle + Math.PI / 6), y2 - 10 * Math.sin(angle + Math.PI / 6));
-            ctx.closePath();
-            ctx.fill();
-        }
-
-        function handleMouseDown(e) {
-            isDragging = true;
-            dragStart = { x: e.clientX - canvasOffset.x, y: e.clientY - canvasOffset.y };
-        }
-
-        function handleMouseMove(e) {
-            if (isDragging) {
-                canvasOffset.x = e.clientX - dragStart.x;
-                canvasOffset.y = e.clientY - dragStart.y;
-                drawSCADA();
-            }
-        }
-
-        function handleMouseUp() {
-            isDragging = false;
-        }
-
-        function handleCanvasClick(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left - canvasOffset.x;
-            const y = e.clientY - rect.top - canvasOffset.y;
-            
-            // Encontrar elemento clicado
-            const clicked = elementos.find(elem => {
-                const ex = elem.pos_x || 100;
-                const ey = elem.pos_y || 100;
-                const dist = Math.sqrt((x - ex) ** 2 + (y - ey) ** 2);
-                return dist < 20;
-            });
-            
-            if (clicked) {
-                selectedElement = clicked;
-                showElementDetails(clicked);
-                drawSCADA();
-            }
-        }
-
-        function showElementDetails(elem) {
-            const container = document.getElementById('elementos-detalhes');
-            container.innerHTML = `
-                <div class="element-card">
-                    <div class="element-header">
-                        <span class="element-name">${elem.nome}</span>
-                        <span class="element-status status-${elem.estado_operacional}">${elem.estado_operacional}</span>
-                    </div>
-                    <div class="element-data">
-                        <div class="element-data-row">
-                            <span>Tipo:</span>
-                            <span>${elem.tipo_elemento}</span>
-                        </div>
-                        ${elem.nivel_atual_cm ? `
-                        <div class="element-data-row">
-                            <span>Nível:</span>
-                            <span>${elem.nivel_atual_cm} cm (${elem.percentual_nivel}%)</span>
-                        </div>
-                        <div class="element-data-row">
-                            <span>Volume:</span>
-                            <span>${elem.volume_atual_l?.toLocaleString()} L</span>
-                        </div>
-                        ` : ''}
-                        ${elem.valvula_estado ? `
-                        <div class="element-data-row">
-                            <span>Válvula:</span>
-                            <span class="element-status status-${elem.valvula_estado}">${elem.valvula_estado}</span>
-                        </div>
-                        ` : ''}
-                        ${elem.bomba_estado ? `
-                        <div class="element-data-row">
-                            <span>Bomba:</span>
-                            <span class="element-status status-${elem.bomba_estado}">${elem.bomba_estado}</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                    <div class="element-controls">
-                        ${elem.categoria === 'controle' ? `
-                            <button class="btn btn-small btn-primary" onclick="toggleValvula(${elem.id})">
-                                ${elem.valvula_estado === 'aberta' ? 'Fechar' : 'Abrir'}
-                            </button>
-                        ` : ''}
-                        ${elem.categoria === 'pressao' ? `
-                            <button class="btn btn-small btn-primary" onclick="toggleBomba(${elem.id})">
-                                ${elem.bomba_estado === 'ligada' ? 'Desligar' : 'Ligar'}
-                            </button>
-                        ` : ''}
-                        <button class="btn btn-small btn-secondary" onclick="showHistory(${elem.id})">Histórico</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function toggleValvula(elemId) {
-            // Implementar API call para alterar estado
-            console.log('Toggle valvula:', elemId);
-        }
-
-        async function toggleBomba(elemId) {
-            // Implementar API call para alterar estado
-            console.log('Toggle bomba:', elemId);
-        }
-
-        function updateStatusBar() {
-            const sensoresOnline = elementos.filter(e => e.sensor_node_id && e.ultima_leitura).length;
-            const sensoresTotal = elementos.filter(e => e.sensor_node_id).length;
-            
-            document.getElementById('status-sensores').textContent = `${sensoresOnline}/${sensoresTotal}`;
-            document.getElementById('status-anomalias').textContent = anomalias.length;
-            document.getElementById('status-update').textContent = new Date().toLocaleTimeString();
-        }
-
-        function refreshData() {
-            loadData();
-        }
-
-        function openModal(id) {
-            document.getElementById(`modal-${id}`).classList.add('active');
-            // Atualizar dropdowns quando abrir modais
-            if (id === 'add-element' || id === 'add-sensor') {
-                loadDropdownData();
-            }
-        }
-
-        function closeModal(id) {
-            document.getElementById(`modal-${id}`).classList.remove('active');
-            // Limpar formulário
-            const form = document.getElementById(`form-${id}`);
-            if (form) form.reset();
-        }
-
-        // ==================== SUBMITS DOS FORMULÁRIOS ====================
-
-        async function submitAddLocal(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            
-            const data = {
-                nome: formData.get('nome'),
-                descricao: formData.get('descricao'),
-                latitude: formData.get('latitude') || null,
-                longitude: formData.get('longitude') || null,
-                altitude_m: formData.get('altitude_m') || null
-            };
-            
-            try {
-                const response = await fetch('/api/gerenciar.php?action=local', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('✅ Local criado com sucesso!');
-                    closeModal('add-local');
-                    refreshData();
-                } else {
-                    alert('❌ Erro: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Erro ao criar local:', error);
-                alert('❌ Erro ao criar local');
-            }
-        }
-
-        async function submitAddElement(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            
-            const data = {
-                alias: formData.get('alias').toUpperCase(),
-                nome: formData.get('nome'),
-                tipo_id: parseInt(formData.get('tipo_id')),
-                local_id: parseInt(formData.get('local_id')),
-                rede_agua_id: formData.get('rede_agua_id') ? parseInt(formData.get('rede_agua_id')) : null,
-                capacidade_l: formData.get('capacidade_l') || null,
-                altura_m: formData.get('altura_m') || null,
-                diametro_cm: formData.get('diametro_cm') || null,
-                fabricante: formData.get('fabricante') || null,
-                observacoes: formData.get('observacoes') || null
-            };
-            
-            try {
-                const response = await fetch('/api/gerenciar.php?action=elemento', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('✅ Elemento criado com sucesso!');
-                    closeModal('add-element');
-                    refreshData();
-                } else {
-                    alert('❌ Erro: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Erro ao criar elemento:', error);
-                alert('❌ Erro ao criar elemento');
-            }
-        }
-
-        async function submitAddSensor(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            
-            const data = {
-                alias: formData.get('alias').toUpperCase(),
-                node_id: parseInt(formData.get('node_id')),
-                mac: formData.get('mac').toUpperCase(),
-                tipo_sensor: formData.get('tipo_sensor'),
-                elemento_id: formData.get('elemento_id') ? parseInt(formData.get('elemento_id')) : null,
-                posicao_sensor: formData.get('posicao_sensor') || null,
-                offset_cm: parseInt(formData.get('offset_cm')) || 0,
-                intervalo_leitura_s: parseInt(formData.get('intervalo_leitura_s')) || 30
-            };
-            
-            try {
-                const response = await fetch('/api/gerenciar.php?action=sensor', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('✅ Sensor criado com sucesso!');
-                    closeModal('add-sensor');
-                    refreshData();
-                } else {
-                    alert('❌ Erro: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Erro ao criar sensor:', error);
-                alert('❌ Erro ao criar sensor');
-            }
-        }
-
-        function selectLocal(localId) {
-            document.querySelectorAll('.local-item').forEach(item => item.classList.remove('active'));
-            event.target.closest('.local-item').classList.add('active');
-            
-            // Filtrar elementos por local
-            // TODO: Implementar filtro visual no canvas
-        }
-
-        function filterElements() {
-            // TODO: Implementar filtros
-            drawSCADA();
-        }
-    </script>
 </body>
 </html>

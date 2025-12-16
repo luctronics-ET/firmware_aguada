@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnóstico - AGUADA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 2.5em;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 40px;
+      font-size: 1.1em;
+    }
+    .section {
+      margin-bottom: 40px;
+    }
+    .section h2 {
+      color: #333;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #667eea;
+    }
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .test-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 20px;
+      background: #f9f9f9;
+      transition: all 0.3s;
+    }
+    .test-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    .test-card h3 {
+      color: #667eea;
+      margin-bottom: 15px;
+      font-size: 1.2em;
+    }
+    .status {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9em;
+      margin: 5px 0;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.loading {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .detail {
+      margin-top: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .detail code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      margin: 10px 10px 10px 0;
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      background: #764ba2;
+      transform: translateY(-2px);
+    }
+    .log {
+      background: #1a1a2e;
+      color: #0f0;
+      padding: 20px;
+      border-radius: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    .log-entry {
+      margin: 5px 0;
+    }
+    .log-entry.success { color: #0f0; }
+    .log-entry.error { color: #f00; }
+    .log-entry.info { color: #0ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Diagnóstico do Sistema AGUADA</h1>
+    <p class="subtitle">Verificação completa de recursos, componentes e funcionalidades</p>
+
+    <!-- Section: Páginas -->
+    <div class="section">
+      <h2>📄 Páginas Implementadas</h2>
+      <div class="test-grid" id="pages-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Section: Componentes -->
+    <div class="section">
+      <h2>🧩 Componentes Reutilizáveis</h2>
+      <div class="test-grid" id="components-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Section: Assets -->
+    <div class="section">
+      <h2>🎨 Assets (CSS/JS)</h2>
+      <div class="test-grid" id="assets-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Section: CDN -->
+    <div class="section">
+      <h2>🌐 Bibliotecas Externas (CDN)</h2>
+      <div class="test-grid" id="cdn-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Section: Console Log -->
+    <div class="section">
+      <h2>📋 Log de Verificação</h2>
+      <div class="log" id="console-log"></div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="section">
+      <h2>🚀 Acessar Páginas</h2>
+      <a href="mapa.html" class="btn" target="_blank">🗺️ Mapa Interativo</a>
+      <a href="scada_new.html" class="btn" target="_blank">📊 SCADA Avançado</a>
+      <a href="consumo.html" class="btn" target="_blank">💧 Análise de Consumo</a>
+      <a href="relatorios_lista.html" class="btn" target="_blank">📋 Relatórios</a>
+    </div>
+  </div>
+
+  <script>
+    // Logging
+    const log = [];
+    function addLog(message, type = 'info') {
+      log.push({ message, type, time: new Date().toLocaleTimeString() });
+      updateLog();
+    }
+
+    function updateLog() {
+      const logEl = document.getElementById('console-log');
+      logEl.innerHTML = log.map(entry => 
+        `<div class="log-entry ${entry.type}">[${entry.time}] ${entry.message}</div>`
+      ).join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Test resources
+    async function testResource(url, name, type = 'page') {
+      addLog(`Testando ${name}: ${url}`, 'info');
+      
+      const card = document.createElement('div');
+      card.className = 'test-card';
+      card.innerHTML = `
+        <h3>${name}</h3>
+        <span class="status loading">Testando...</span>
+        <div class="detail"><code>${url}</code></div>
+      `;
+      
+      const grid = document.getElementById(`${type}-grid`);
+      grid.appendChild(card);
+
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        
+        if (response.ok) {
+          card.querySelector('.status').className = 'status success';
+          card.querySelector('.status').textContent = '✅ OK';
+          addLog(`✅ ${name} - Carregado com sucesso (${response.status})`, 'success');
+        } else {
+          card.querySelector('.status').className = 'status error';
+          card.querySelector('.status').textContent = `❌ Erro ${response.status}`;
+          addLog(`❌ ${name} - Falhou (${response.status})`, 'error');
+        }
+      } catch (error) {
+        card.querySelector('.status').className = 'status error';
+        card.querySelector('.status').textContent = '❌ Erro de Rede';
+        addLog(`❌ ${name} - Erro: ${error.message}`, 'error');
+      }
+    }
+
+    // Run tests
+    async function runTests() {
+      addLog('Iniciando diagnóstico do sistema...', 'info');
+      
+      // Test pages
+      await testResource('/mapa.html', 'Mapa Interativo', 'pages');
+      await testResource('/scada_new.html', 'SCADA Nova', 'pages');
+      await testResource('/consumo.html', 'Consumo Detalhado', 'pages');
+      await testResource('/relatorios_lista.html', 'Relatórios Lista', 'pages');
+      
+      // Test components
+      await testResource('/components/navigation.html', 'Navigation', 'components');
+      await testResource('/components/header.html', 'Header', 'components');
+      
+      // Test assets
+      await testResource('/assets/css/variables.css', 'Variables CSS', 'assets');
+      await testResource('/assets/css/animations.css', 'Animations CSS', 'assets');
+      
+      // Test CDN
+      await testResource('https://cdn.tailwindcss.com', 'Tailwind CSS', 'cdn');
+      await testResource('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js', 'Chart.js', 'cdn');
+      await testResource('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'Leaflet CSS', 'cdn');
+      await testResource('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'Leaflet JS', 'cdn');
+      
+      addLog('✅ Diagnóstico completo!', 'success');
+    }
+
+    // Initialize
+    runTests();
+  </script>
+</body>
+</html>

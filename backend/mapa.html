@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa da Rede - CMASM AGUADA</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/animations.css">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    #map {
+      height: calc(100vh - 180px);
+      border-radius: 0.5rem;
+    }
+    
+    /* Custom marker styles */
+    .custom-marker {
+      background: transparent;
+      border: none;
+    }
+    
+    .marker-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .marker-reservoir {
+      background: linear-gradient(135deg, #0066cc, #00a8ff);
+    }
+    
+    .marker-captacao {
+      background: linear-gradient(135deg, #00c853, #00e676);
+    }
+    
+    .marker-alert {
+      background: linear-gradient(135deg, #ff1744, #ff5252);
+      animation: glow 1.5s ease-in-out infinite;
+    }
+    
+    /* Popup customization */
+    .leaflet-popup-content-wrapper {
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .leaflet-popup-content {
+      margin: 0;
+      padding: 1rem;
+      min-width: 250px;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Include Navigation -->
+  <div id="navigation-container"></div>
+
+  <!-- Main Content -->
+  <div class="lg:ml-64">
+    
+    <!-- Include Header -->
+    <div id="header-container"></div>
+
+    <!-- Page Content -->
+    <main class="p-4 sm:p-6 lg:p-8">
+
+      <!-- Page Header -->
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Mapa da Rede Hidráulica</h1>
+        <p class="text-gray-600">Visualização geográfica dos ativos monitorados pelo sistema AGUADA</p>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="flex flex-wrap items-center gap-4">
+          
+          <!-- Filter by Type -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Tipo:</label>
+            <select id="filter-type" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="all">Todos</option>
+              <option value="reservoir">Reservatórios</option>
+              <option value="captacao">Captações</option>
+            </select>
+          </div>
+
+          <!-- Filter by Status -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Status:</label>
+            <select id="filter-status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="all">Todos</option>
+              <option value="normal">Normal</option>
+              <option value="alert">Com Alerta</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+
+          <!-- Search -->
+          <div class="flex-1 min-w-[200px]">
+            <input type="text" id="search-asset" placeholder="Buscar ativo..." 
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+
+          <!-- View Buttons -->
+          <div class="flex gap-2">
+            <button id="btn-center-map" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+              Centralizar
+            </button>
+            <button id="btn-refresh" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
+              Atualizar
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Map Container -->
+      <div class="bg-white rounded-lg shadow-md p-4">
+        <div id="map" class="fade-in"></div>
+      </div>
+
+      <!-- Assets List (Below Map) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+        <div id="assets-list" class="col-span-full">
+          <!-- Will be populated by JS -->
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Load Components
+    fetch('components/navigation.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('navigation-container').innerHTML = html;
+      });
+
+    fetch('components/header.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('header-container').innerHTML = html;
+      });
+
+    // Assets Data (In production, load from API)
+    const assets = [
+      {
+        id: 'RCON',
+        name: 'Reservatório Condomínio',
+        type: 'reservoir',
+        lat: -22.8382494, // OSM: Node 13323767070 (80m³, 5m altura)
+        lng: -43.1080894,
+        level: 75,
+        capacity: 80000,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:30:00'
+      },
+      {
+        id: 'RCAV',
+        name: 'Reservatório Cavalinho',
+        type: 'reservoir',
+        lat: -22.8371134, // OSM: Node 13323767089 (80m³, água potável, 5m)
+        lng: -43.1093961,
+        level: 45,
+        capacity: 80000,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:28:00'
+      },
+      {
+        id: 'RCB3',
+        name: 'Reservatório B03',
+        type: 'reservoir',
+        lat: -22.8384951, // OSM: Node 13323767090 (80m³, concreto)
+        lng: -43.1083615,
+        level: 18,
+        capacity: 80000,
+        status: 'alert',
+        lastUpdate: '2025-12-15 14:29:00'
+      },
+      {
+        id: 'CIE1',
+        name: 'Captação Ilha Engenho 01',
+        type: 'captacao',
+        lat: -22.8388258, // OSM: Node 13323767091 (245m³, 4m altura)
+        lng: -43.1081429,
+        flow: 120, // L/min
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:31:00'
+      },
+      {
+        id: 'CIE2',
+        name: 'Captação Ilha Engenho 02',
+        type: 'captacao',
+        lat: -22.8389166, // OSM: Node 13323767092 (245m³, 4m altura)
+        lng: -43.1080755,
+        flow: 95,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:30:00'
+      },
+      {
+        id: 'RCAV2',
+        name: 'Reservatório Cavalinho 2',
+        type: 'reservoir',
+        lat: -22.8380000, // Próximo ao RCON (área leste)
+        lng: -43.1078000,
+        level: 82,
+        capacity: 80000,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:29:00'
+      }
+    ];
+
+    // Initialize Map - CMASM - Ilha do Engenho, São Gonçalo - RJ (coordenadas OSM)
+    const map = L.map('map').setView([-22.8380, -43.1086], 17);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Markers storage
+    const markers = [];
+
+    // Get marker color based on status and level
+    function getMarkerColor(asset) {
+      if (asset.status === 'alert') return 'marker-alert';
+      if (asset.type === 'captacao') return 'marker-captacao';
+      if (asset.level !== undefined) {
+        if (asset.level < 20) return 'marker-alert';
+        return 'marker-reservoir';
+      }
+      return 'marker-reservoir';
+    }
+
+    // Create custom marker HTML
+    function createMarkerHTML(asset) {
+      const colorClass = getMarkerColor(asset);
+      const icon = asset.type === 'captacao' ? '💧' : '🏛️';
+      return `<div class="marker-icon ${colorClass}">${icon}</div>`;
+    }
+
+    // Create popup content
+    function createPopupContent(asset) {
+      let content = `
+        <div class="popup-content">
+          <h3 class="text-lg font-bold text-gray-800 mb-2">${asset.name}</h3>
+          <p class="text-sm text-gray-600 mb-3">ID: <span class="font-mono font-semibold">${asset.id}</span></p>
+      `;
+
+      if (asset.type === 'reservoir') {
+        const levelColor = asset.level < 20 ? 'text-red-600' : 
+                          asset.level < 50 ? 'text-yellow-600' : 'text-green-600';
+        content += `
+          <div class="space-y-2 mb-3">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-600">Nível:</span>
+              <span class="text-lg font-bold ${levelColor}">${asset.level}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+              <div class="h-3 rounded-full transition-all" style="width: ${asset.level}%; background: linear-gradient(90deg, #0066cc, #00a8ff);"></div>
+            </div>
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-gray-600">Capacidade:</span>
+              <span class="font-semibold">${(asset.capacity / 1000).toFixed(1)}m³</span>
+            </div>
+          </div>
+        `;
+      } else {
+        content += `
+          <div class="space-y-2 mb-3">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-600">Vazão:</span>
+              <span class="text-lg font-bold text-blue-600">${asset.flow} L/min</span>
+            </div>
+          </div>
+        `;
+      }
+
+      const statusColors = {
+        'normal': 'bg-green-100 text-green-800',
+        'alert': 'bg-red-100 text-red-800',
+        'offline': 'bg-gray-100 text-gray-800'
+      };
+
+      content += `
+          <div class="flex items-center justify-between pt-3 border-t border-gray-200">
+            <span class="text-xs ${statusColors[asset.status]} px-2 py-1 rounded-full font-medium">
+              ${asset.status === 'normal' ? '✓ Normal' : asset.status === 'alert' ? '⚠ Alerta' : '○ Offline'}
+            </span>
+            <span class="text-xs text-gray-500">${asset.lastUpdate.split(' ')[1]}</span>
+          </div>
+          <div class="mt-3">
+            <a href="scada.html?sensor=${asset.id}" class="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+              Ver Detalhes
+            </a>
+          </div>
+        </div>
+      `;
+
+      return content;
+    }
+
+    // Add markers to map
+    function addMarkers() {
+      // Clear existing markers
+      markers.forEach(m => map.removeLayer(m));
+      markers.length = 0;
+
+      assets.forEach(asset => {
+        const icon = L.divIcon({
+          html: createMarkerHTML(asset),
+          className: 'custom-marker',
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+          popupAnchor: [0, -20]
+        });
+
+        const marker = L.marker([asset.lat, asset.lng], { icon })
+          .bindPopup(createPopupContent(asset), { maxWidth: 300 })
+          .addTo(map);
+
+        markers.push(marker);
+      });
+    }
+
+    // Render assets list
+    function renderAssetsList() {
+      const container = document.getElementById('assets-list');
+      container.innerHTML = assets.map(asset => {
+        const statusColors = {
+          'normal': 'bg-green-100 text-green-800',
+          'alert': 'bg-red-100 text-red-800',
+          'offline': 'bg-gray-100 text-gray-800'
+        };
+
+        return `
+          <div class="bg-white rounded-lg shadow-md p-4 hover-lift cursor-pointer" onclick="focusAsset('${asset.id}')">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <h3 class="font-semibold text-gray-800">${asset.name}</h3>
+                <p class="text-sm text-gray-600">${asset.id}</p>
+              </div>
+              <span class="text-xs ${statusColors[asset.status]} px-2 py-1 rounded-full font-medium">
+                ${asset.status === 'normal' ? '✓' : asset.status === 'alert' ? '⚠' : '○'} ${asset.status}
+              </span>
+            </div>
+            ${asset.type === 'reservoir' ? `
+              <div class="flex items-center gap-2 mb-2">
+                <div class="flex-1 bg-gray-200 rounded-full h-2">
+                  <div class="h-2 rounded-full" style="width: ${asset.level}%; background: linear-gradient(90deg, #0066cc, #00a8ff);"></div>
+                </div>
+                <span class="text-sm font-semibold text-gray-700">${asset.level}%</span>
+              </div>
+            ` : `
+              <div class="text-sm text-gray-600 mb-2">
+                Vazão: <span class="font-semibold">${asset.flow} L/min</span>
+              </div>
+            `}
+            <div class="text-xs text-gray-500">${asset.lastUpdate}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Focus on specific asset
+    function focusAsset(id) {
+      const asset = assets.find(a => a.id === id);
+      if (asset) {
+        map.setView([asset.lat, asset.lng], 16);
+        const marker = markers.find(m => m.getLatLng().lat === asset.lat);
+        if (marker) marker.openPopup();
+      }
+    }
+
+    // Center map
+    document.getElementById('btn-center-map').addEventListener('click', () => {
+      const bounds = L.latLngBounds(assets.map(a => [a.lat, a.lng]));
+      map.fitBounds(bounds, { padding: [50, 50] });
+    });
+
+    // Refresh data
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+      // In production, fetch from API
+      addMarkers();
+      renderAssetsList();
+    });
+
+    // Initialize
+    addMarkers();
+    renderAssetsList();
+
+    // Center map on all markers
+    const bounds = L.latLngBounds(assets.map(a => [a.lat, a.lng]));
+    map.fitBounds(bounds, { padding: [50, 50] });
+  </script>
+
+</body>
+</html>

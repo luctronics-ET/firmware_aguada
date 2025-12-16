@@ -57,3 +57,6 @@ __pycache__/
 # Testing
 coverage/
 .coverage
+
+# Referencias
+.REFERENCIAS/

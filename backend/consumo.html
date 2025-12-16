@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consumo - CMASM AGUADA</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/animations.css">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    /* Chart container com altura fixa */
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Include Navigation -->
+  <div id="navigation-container"></div>
+
+  <!-- Main Content -->
+  <div class="lg:ml-64">
+    
+    <!-- Include Header -->
+    <div id="header-container"></div>
+
+    <!-- Page Content -->
+    <main class="p-4 sm:p-6 lg:p-8">
+
+      <!-- Page Header -->
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Análise de Consumo</h1>
+        <p class="text-gray-600">Acompanhamento detalhado do consumo de água por período e reservatório</p>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+        
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm text-gray-600">Consumo Hoje</p>
+            <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">↑ 12%</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-800"><span id="stat-today">0</span> m³</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm text-gray-600">Média Diária (7d)</p>
+            <span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">→ Estável</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-800"><span id="stat-avg">0</span> m³</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm text-gray-600">Pico do Dia</p>
+            <span class="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">18:00</span>
+          </div>
+          <p class="text-2xl font-bold text-gray-800"><span id="stat-peak">0</span> L/h</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm text-gray-600">Economia Mensal</p>
+            <span class="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full">vs mês anterior</span>
+          </div>
+          <p class="text-2xl font-bold text-green-600">-<span id="stat-savings">0</span> m³</p>
+        </div>
+
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="flex flex-wrap items-center gap-4">
+          
+          <!-- Date Range -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Período:</label>
+            <select id="filter-period" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+              <option value="today">Hoje</option>
+              <option value="yesterday">Ontem</option>
+              <option value="7d" selected>Últimos 7 dias</option>
+              <option value="30d">Últimos 30 dias</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+
+          <!-- Reservoir Filter -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Reservatório:</label>
+            <select id="filter-reservoir" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+              <option value="all">Todos</option>
+              <option value="RCON">RCON - Condomínio</option>
+              <option value="RCAV">RCAV - Cavalinho</option>
+              <option value="RCB3">RCB3 - B03</option>
+              <option value="CIE1">CIE1 - Ilha Engenho 01</option>
+              <option value="CIE2">CIE2 - Ilha Engenho 02</option>
+            </select>
+          </div>
+
+          <!-- Time Slot Filter -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Horário:</label>
+            <select id="filter-timeslot" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+              <option value="all">Todos</option>
+              <option value="madrugada">Madrugada (00h-06h)</option>
+              <option value="manha">Manhã (06h-12h)</option>
+              <option value="tarde">Tarde (12h-18h)</option>
+              <option value="noite">Noite (18h-00h)</option>
+            </select>
+          </div>
+
+          <!-- Export Button -->
+          <div class="ml-auto">
+            <button id="btn-export" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Exportar CSV
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        
+        <!-- Hourly Consumption -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Consumo por Hora</h3>
+          <div class="chart-container">
+            <canvas id="hourlyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Daily Comparison -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Comparação Diária (7 dias)</h3>
+          <div class="chart-container">
+            <canvas id="dailyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Reservoir Distribution -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Distribuição por Reservatório</h3>
+          <div class="chart-container">
+            <canvas id="reservoirChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Time Slot Analysis -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Análise por Período do Dia</h3>
+          <div class="chart-container">
+            <canvas id="timeslotChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Detailed Table -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">Detalhamento de Consumo</h3>
+          <div class="flex gap-2">
+            <select id="table-rows" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+              <option value="50">50 linhas</option>
+              <option value="100" selected>100 linhas</option>
+              <option value="200">200 linhas</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Data/Hora</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Reservatório</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Volume (m³)</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Vazão (L/h)</th>
+                <th class="px-4 py-3 text-center font-semibold text-gray-700">Período</th>
+                <th class="px-4 py-3 text-center font-semibold text-gray-700">Tipo</th>
+              </tr>
+            </thead>
+            <tbody id="consumption-table">
+              <!-- Will be populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+          <p class="text-sm text-gray-600">Mostrando <span id="showing-range">1-100</span> de <span id="total-records">1.247</span> registros</p>
+          <div class="flex gap-2">
+            <button id="btn-prev" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+              Anterior
+            </button>
+            <button id="btn-next" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">
+              Próximo
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Load Components
+    fetch('components/navigation.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('navigation-container').innerHTML = html;
+      });
+
+    fetch('components/header.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('header-container').innerHTML = html;
+      });
+
+    // Mock data
+    function generateMockData() {
+      const data = [];
+      const reservoirs = ['RCON', 'RCAV', 'RCB3', 'CIE1', 'CIE2'];
+      const types = ['Normal', 'Anormal', 'Vazamento'];
+      
+      for (let i = 0; i < 100; i++) {
+        const date = new Date();
+        date.setHours(date.getHours() - i);
+        
+        const hour = date.getHours();
+        let period = 'Madrugada';
+        if (hour >= 6 && hour < 12) period = 'Manhã';
+        else if (hour >= 12 && hour < 18) period = 'Tarde';
+        else if (hour >= 18) period = 'Noite';
+        
+        data.push({
+          datetime: date.toLocaleString('pt-BR'),
+          reservoir: reservoirs[Math.floor(Math.random() * reservoirs.length)],
+          volume: (Math.random() * 5 + 2).toFixed(2),
+          flow: Math.floor(Math.random() * 500 + 100),
+          period: period,
+          type: types[Math.floor(Math.random() * 100) < 85 ? 0 : Math.random() < 0.5 ? 1 : 2]
+        });
+      }
+      
+      return data;
+    }
+
+    const consumptionData = generateMockData();
+
+    // Render table
+    function renderTable() {
+      const tbody = document.getElementById('consumption-table');
+      
+      tbody.innerHTML = consumptionData.slice(0, 100).map(row => {
+        const typeColors = {
+          'Normal': 'bg-green-100 text-green-800',
+          'Anormal': 'bg-yellow-100 text-yellow-800',
+          'Vazamento': 'bg-red-100 text-red-800'
+        };
+        
+        return `
+          <tr class="border-b border-gray-100 hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-800">${row.datetime}</td>
+            <td class="px-4 py-3">
+              <span class="font-mono text-sm font-semibold text-blue-600">${row.reservoir}</span>
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-gray-800">${row.volume}</td>
+            <td class="px-4 py-3 text-right text-gray-600">${row.flow}</td>
+            <td class="px-4 py-3 text-center">
+              <span class="text-xs text-gray-600">${row.period}</span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <span class="text-xs ${typeColors[row.type]} px-2 py-1 rounded-full font-medium">
+                ${row.type}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Update stats
+    function updateStats() {
+      document.getElementById('stat-today').textContent = '34.5';
+      document.getElementById('stat-avg').textContent = '31.2';
+      document.getElementById('stat-peak').textContent = '1,840';
+      document.getElementById('stat-savings').textContent = '8.3';
+    }
+
+    // Initialize charts
+    function initCharts() {
+      // Hourly Chart
+      new Chart(document.getElementById('hourlyChart'), {
+        type: 'bar',
+        data: {
+          labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+          datasets: [{
+            label: 'Consumo (m³)',
+            data: Array.from({length: 24}, () => Math.random() * 3 + 1),
+            backgroundColor: '#3b82f6'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 2
+        }
+      });
+
+      // Daily Chart
+      new Chart(document.getElementById('dailyChart'), {
+        type: 'line',
+        data: {
+          labels: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+          datasets: [{
+            label: 'Consumo (m³)',
+            data: [28, 32, 35, 31, 33, 36, 34],
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 2
+        }
+      });
+
+      // Reservoir Chart
+      new Chart(document.getElementById('reservoirChart'), {
+        type: 'doughnut',
+        data: {
+          labels: ['RCON', 'RCAV', 'RCB3', 'CIE1', 'CIE2'],
+          datasets: [{
+            data: [30, 20, 25, 15, 10],
+            backgroundColor: ['#3b82f6', '#22c55e', '#eab308', '#8b5cf6', '#06b6d4']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 1.5
+        }
+      });
+
+      // Timeslot Chart
+      new Chart(document.getElementById('timeslotChart'), {
+        type: 'polarArea',
+        data: {
+          labels: ['Madrugada', 'Manhã', 'Tarde', 'Noite'],
+          datasets: [{
+            data: [5, 12, 18, 15],
+            backgroundColor: ['#3b82f6', '#22c55e', '#eab308', '#8b5cf6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 1.5
+        }
+      });
+    }
+
+    // Export CSV
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const csv = ['Data/Hora,Reservatório,Volume (m³),Vazão (L/h),Período,Tipo'];
+      consumptionData.forEach(row => {
+        csv.push(`${row.datetime},${row.reservoir},${row.volume},${row.flow},${row.period},${row.type}`);
+      });
+      
+      const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `consumo_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+    });
+
+    // Initialize
+    setTimeout(() => {
+      updateStats();
+      renderTable();
+      initCharts();
+    }, 100);
+  </script>
+
+</body>
+</html>

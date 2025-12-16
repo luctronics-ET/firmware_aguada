@@ -1,0 +1,171 @@
+/* CSS Variables - Design System */
+/* Baseado em: .REFERENCIAS/templates/aqua-flow.html e TailAdmin */
+
+:root {
+  /* Primary Colors */
+  --primary-blue: #0066cc;
+  --primary-blue-dark: #0052a3;
+  --secondary-blue: #00a8ff;
+  --secondary-blue-light: #33b8ff;
+
+  /* Status Colors */
+  --success-green: #00c853;
+  --success-green-light: #33d470;
+  --warning-yellow: #ffd600;
+  --warning-orange: #ff9800;
+  --danger-red: #ff1744;
+  --danger-red-dark: #cc0000;
+  --info-blue: #2196f3;
+
+  /* Neutral Colors */
+  --dark-bg: #1a1a2e;
+  --dark-card: #16213e;
+  --gray-900: #111827;
+  --gray-800: #1f2937;
+  --gray-700: #374151;
+  --gray-600: #4b5563;
+  --gray-500: #6b7280;
+  --gray-400: #9ca3af;
+  --gray-300: #d1d5db;
+  --gray-200: #e5e7eb;
+  --gray-100: #f3f4f6;
+  --gray-50: #f9fafb;
+
+  /* Gradients */
+  --gradient-blue: linear-gradient(135deg, #0066cc 0%, #00a8ff 100%);
+  --gradient-green: linear-gradient(135deg, #00c853 0%, #00e676 100%);
+  --gradient-purple: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-water: linear-gradient(180deg, #0066cc 0%, #00a8ff 100%);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}
+
+/* Dark Theme Variables */
+.dark-theme {
+  --bg-primary: var(--dark-bg);
+  --bg-secondary: var(--dark-card);
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --border-color: #2a2a3e;
+}
+
+/* Light Theme Variables (default) */
+body {
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--gray-50);
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --border-color: var(--gray-200);
+}
+
+/* Utility Classes for Variables */
+.gradient-blue {
+  background: var(--gradient-blue);
+}
+
+.gradient-green {
+  background: var(--gradient-green);
+}
+
+.gradient-purple {
+  background: var(--gradient-purple);
+}
+
+.gradient-water {
+  background: var(--gradient-water);
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-card-hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.transition-base {
+  transition: all var(--transition-base);
+}
+
+.transition-fast {
+  transition: all var(--transition-fast);
+}
+
+/* Glassmorphism Effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(22, 33, 62, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Tank/Water specific colors */
+.water-level-critical {
+  color: var(--danger-red);
+  background-color: rgba(255, 23, 68, 0.1);
+}
+
+.water-level-low {
+  color: var(--warning-orange);
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.water-level-medium {
+  color: var(--warning-yellow);
+  background-color: rgba(255, 214, 0, 0.1);
+}
+
+.water-level-good {
+  color: var(--success-green);
+  background-color: rgba(0, 200, 83, 0.1);
+}
+
+.water-level-full {
+  color: var(--primary-blue);
+  background-color: rgba(0, 102, 204, 0.1);
+}

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCADA - CMASM AGUADA</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/animations.css">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    /* Tank SVG Animation */
+    .water-fill {
+      transition: height 1s ease, fill 0.5s ease;
+    }
+    
+    /* Gauge styles */
+    .gauge-container {
+      position: relative;
+      width: 100%;
+      height: 120px;
+    }
+    
+    .gauge-bar {
+      width: 100%;
+      height: 30px;
+      background: linear-gradient(90deg, #e5e7eb 0%, #e5e7eb 100%);
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .gauge-fill {
+      height: 100%;
+      transition: width 1s ease, background 0.5s ease;
+      border-radius: 15px;
+    }
+    
+    .gauge-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-weight: 700;
+      font-size: 14px;
+      color: #1f2937;
+      z-index: 10;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Include Navigation -->
+  <div id="navigation-container"></div>
+
+  <!-- Main Content -->
+  <div class="lg:ml-64">
+    
+    <!-- Include Header -->
+    <div id="header-container"></div>
+
+    <!-- Page Content -->
+    <main class="p-4 sm:p-6 lg:p-8">
+
+      <!-- Stats Bar -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+        
+        <!-- Total Volume -->
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Volume Total</p>
+              <p class="text-2xl font-bold text-gray-800"><span id="stat-volume">0</span> m³</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Average Level -->
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Nível Médio</p>
+              <p class="text-2xl font-bold text-gray-800"><span id="stat-level">0</span>%</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Sensors -->
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Sensores Ativos</p>
+              <p class="text-2xl font-bold text-gray-800"><span id="stat-sensors">0</span>/5</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="bg-white rounded-lg shadow-md p-4 hover-lift">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Alertas Ativos</p>
+              <p class="text-2xl font-bold text-gray-800"><span id="stat-alerts">0</span></p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Sensors Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6" id="sensors-grid">
+        <!-- Sensors will be dynamically loaded here -->
+      </div>
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Volume Trend Chart -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Tendência de Volume (24h)</h3>
+            <select id="chart-period" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+              <option value="24h">24 horas</option>
+              <option value="7d">7 dias</option>
+              <option value="30d">30 dias</option>
+            </select>
+          </div>
+          <canvas id="volumeChart" height="200"></canvas>
+        </div>
+
+        <!-- Distribution Chart -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Distribuição de Volume</h3>
+          <canvas id="distributionChart" height="200"></canvas>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Load Components
+    fetch('components/navigation.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('navigation-container').innerHTML = html;
+      });
+
+    fetch('components/header.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('header-container').innerHTML = html;
+      });
+
+    // Sensor Data (In production, load from API)
+    let sensorsData = [
+      {
+        id: 'RCON',
+        name: 'Reservatório Condomínio',
+        level: 75,
+        volume: 37500,
+        capacity: 50000,
+        distance_cm: 50,
+        valve_in: true,
+        valve_out: false,
+        flow: true,
+        battery: 4850,
+        rssi: -45,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:30:15'
+      },
+      {
+        id: 'RCAV',
+        name: 'Reservatório Cavalinho',
+        level: 45,
+        volume: 13500,
+        capacity: 30000,
+        distance_cm: 110,
+        valve_in: true,
+        valve_out: true,
+        flow: true,
+        battery: 4920,
+        rssi: -52,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:29:45'
+      },
+      {
+        id: 'RCB3',
+        name: 'Reservatório B03',
+        level: 18,
+        volume: 7200,
+        capacity: 40000,
+        distance_cm: 164,
+        valve_in: false,
+        valve_out: false,
+        flow: false,
+        battery: 4750,
+        rssi: -58,
+        status: 'alert',
+        lastUpdate: '2025-12-15 14:28:20'
+      },
+      {
+        id: 'CIE1',
+        name: 'Captação Ilha Engenho 01',
+        level: 85,
+        volume: 21250,
+        capacity: 25000,
+        distance_cm: 30,
+        valve_in: true,
+        valve_out: true,
+        flow: true,
+        battery: 5010,
+        rssi: -40,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:31:00'
+      },
+      {
+        id: 'CIE2',
+        name: 'Captação Ilha Engenho 02',
+        level: 70,
+        volume: 17500,
+        capacity: 25000,
+        distance_cm: 60,
+        valve_in: true,
+        valve_out: false,
+        flow: true,
+        battery: 4880,
+        rssi: -48,
+        status: 'normal',
+        lastUpdate: '2025-12-15 14:30:30'
+      }
+    ];
+
+    // Get level color
+    function getLevelColor(level) {
+      if (level < 20) return '#ef4444'; // red
+      if (level < 40) return '#f59e0b'; // orange
+      if (level < 60) return '#eab308'; // yellow
+      if (level < 80) return '#22c55e'; // green
+      return '#3b82f6'; // blue
+    }
+
+    // Get level gradient
+    function getLevelGradient(level) {
+      if (level < 20) return 'linear-gradient(90deg, #dc2626, #ef4444)';
+      if (level < 40) return 'linear-gradient(90deg, #ea580c, #f59e0b)';
+      if (level < 60) return 'linear-gradient(90deg, #ca8a04, #eab308)';
+      if (level < 80) return 'linear-gradient(90deg, #16a34a, #22c55e)';
+      return 'linear-gradient(90deg, #2563eb, #3b82f6)';
+    }
+
+    // Render sensor card
+    function renderSensorCard(sensor) {
+      const statusColor = sensor.status === 'alert' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+      const statusIcon = sensor.status === 'alert' ? '⚠️' : '✅';
+
+      return `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden hover-lift fade-in-up">
+          
+          <!-- Card Header -->
+          <div class="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-semibold">${sensor.name}</h3>
+              <span class="text-xs font-mono bg-white bg-opacity-20 px-2 py-1 rounded">${sensor.id}</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm opacity-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>${sensor.lastUpdate.split(' ')[1]}</span>
+            </div>
+          </div>
+
+          <!-- Card Body -->
+          <div class="p-4">
+            
+            <!-- Level Display -->
+            <div class="mb-4">
+              <div class="flex items-end justify-between mb-2">
+                <span class="text-sm text-gray-600">Nível</span>
+                <span class="text-3xl font-bold" style="color: ${getLevelColor(sensor.level)}">${sensor.level}%</span>
+              </div>
+              
+              <!-- Gauge Bar -->
+              <div class="gauge-bar relative">
+                <div class="gauge-fill" style="width: ${sensor.level}%; background: ${getLevelGradient(sensor.level)}"></div>
+              </div>
+              
+              <!-- Volume Info -->
+              <div class="flex justify-between mt-2 text-sm text-gray-600">
+                <span>${(sensor.volume / 1000).toFixed(1)} m³</span>
+                <span>Cap: ${(sensor.capacity / 1000).toFixed(0)} m³</span>
+              </div>
+            </div>
+
+            <!-- Tank SVG Visualization -->
+            <div class="mb-4 flex justify-center">
+              <svg width="120" height="140" viewBox="0 0 120 140" class="drop-shadow-md">
+                <!-- Tank body -->
+                <rect x="30" y="20" width="60" height="100" fill="#e5e7eb" stroke="#9ca3af" stroke-width="2" rx="4"/>
+                
+                <!-- Water fill -->
+                <rect class="water-fill" x="30" y="${120 - sensor.level}" width="60" height="${sensor.level}" 
+                      fill="${getLevelColor(sensor.level)}" opacity="0.8"/>
+                
+                <!-- Wave effect (top of water) -->
+                <path d="M30,${120 - sensor.level} Q40,${118 - sensor.level} 50,${120 - sensor.level} T70,${120 - sensor.level} T90,${120 - sensor.level}" 
+                      fill="${getLevelColor(sensor.level)}" opacity="0.5">
+                  <animate attributeName="d" 
+                           values="M30,${120 - sensor.level} Q40,${118 - sensor.level} 50,${120 - sensor.level} T70,${120 - sensor.level} T90,${120 - sensor.level};
+                                   M30,${120 - sensor.level} Q40,${122 - sensor.level} 50,${120 - sensor.level} T70,${120 - sensor.level} T90,${120 - sensor.level};
+                                   M30,${120 - sensor.level} Q40,${118 - sensor.level} 50,${120 - sensor.level} T70,${120 - sensor.level} T90,${120 - sensor.level}"
+                           dur="2s" 
+                           repeatCount="indefinite"/>
+                </path>
+                
+                <!-- Level text -->
+                <text x="60" y="75" text-anchor="middle" font-size="20" font-weight="bold" fill="#1f2937">
+                  ${sensor.level}%
+                </text>
+              </svg>
+            </div>
+
+            <!-- Sensor Details Grid -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              
+              <!-- Distance -->
+              <div class="bg-gray-50 rounded-lg p-2">
+                <p class="text-xs text-gray-600 mb-1">Distância</p>
+                <p class="text-sm font-semibold text-gray-800">${sensor.distance_cm} cm</p>
+              </div>
+
+              <!-- Battery -->
+              <div class="bg-gray-50 rounded-lg p-2">
+                <p class="text-xs text-gray-600 mb-1">Bateria</p>
+                <p class="text-sm font-semibold text-gray-800">${(sensor.battery / 1000).toFixed(2)} V</p>
+              </div>
+
+              <!-- RSSI -->
+              <div class="bg-gray-50 rounded-lg p-2">
+                <p class="text-xs text-gray-600 mb-1">Sinal</p>
+                <p class="text-sm font-semibold text-gray-800">${sensor.rssi} dBm</p>
+              </div>
+
+              <!-- Flow -->
+              <div class="bg-gray-50 rounded-lg p-2">
+                <p class="text-xs text-gray-600 mb-1">Fluxo</p>
+                <p class="text-sm font-semibold ${sensor.flow ? 'text-blue-600' : 'text-gray-400'}">
+                  ${sensor.flow ? '💧 Sim' : '⏹️ Não'}
+                </p>
+              </div>
+
+            </div>
+
+            <!-- Valves Status -->
+            <div class="flex gap-2 mb-4">
+              <div class="flex-1 ${sensor.valve_in ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-2 text-center">
+                <p class="text-xs text-gray-600 mb-1">Válvula Entrada</p>
+                <p class="text-sm font-semibold ${sensor.valve_in ? 'text-green-600' : 'text-gray-400'}">
+                  ${sensor.valve_in ? '🟢 Aberta' : '🔴 Fechada'}
+                </p>
+              </div>
+              <div class="flex-1 ${sensor.valve_out ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-2 text-center">
+                <p class="text-xs text-gray-600 mb-1">Válvula Saída</p>
+                <p class="text-sm font-semibold ${sensor.valve_out ? 'text-green-600' : 'text-gray-400'}">
+                  ${sensor.valve_out ? '🟢 Aberta' : '🔴 Fechada'}
+                </p>
+              </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs ${statusColor} px-3 py-1.5 rounded-full font-medium">
+                ${statusIcon} ${sensor.status === 'alert' ? 'ALERTA' : 'Normal'}
+              </span>
+              <button onclick="viewHistory('${sensor.id}')" class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                Ver Histórico →
+              </button>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }
+
+    // Render all sensors
+    function renderSensors() {
+      const grid = document.getElementById('sensors-grid');
+      grid.innerHTML = sensorsData.map(renderSensorCard).join('');
+    }
+
+    // Update stats
+    function updateStats() {
+      const totalVolume = sensorsData.reduce((sum, s) => sum + s.volume, 0);
+      const avgLevel = sensorsData.reduce((sum, s) => sum + s.level, 0) / sensorsData.length;
+      const activeSensors = sensorsData.filter(s => s.status !== 'offline').length;
+      const alerts = sensorsData.filter(s => s.status === 'alert').length;
+
+      document.getElementById('stat-volume').textContent = (totalVolume / 1000).toFixed(1);
+      document.getElementById('stat-level').textContent = avgLevel.toFixed(0);
+      document.getElementById('stat-sensors').textContent = activeSensors;
+      document.getElementById('stat-alerts').textContent = alerts;
+
+      // Animate numbers
+      document.querySelectorAll('[id^="stat-"]').forEach(el => {
+        el.classList.add('count-up');
+        setTimeout(() => el.classList.remove('count-up'), 500);
+      });
+    }
+
+    // View history
+    function viewHistory(sensorId) {
+      window.location.href = `historico.html?sensor=${sensorId}`;
+    }
+
+    // Initialize Charts
+    let volumeChart, distributionChart;
+
+    function initCharts() {
+      // Volume Trend Chart
+      const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+      volumeChart = new Chart(volumeCtx, {
+        type: 'line',
+        data: {
+          labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+          datasets: [{
+            label: 'Volume Total (m³)',
+            data: Array.from({length: 24}, () => Math.random() * 50 + 70),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+
+      // Distribution Chart
+      const distCtx = document.getElementById('distributionChart').getContext('2d');
+      distributionChart = new Chart(distCtx, {
+        type: 'doughnut',
+        data: {
+          labels: sensorsData.map(s => s.id),
+          datasets: [{
+            data: sensorsData.map(s => s.volume),
+            backgroundColor: [
+              '#3b82f6',
+              '#22c55e',
+              '#eab308',
+              '#8b5cf6',
+              '#06b6d4'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right'
+            }
+          }
+        }
+      });
+    }
+
+    // Polling data
+    const POLL_INTERVAL = 10000; // 10 seconds
+
+    function pollData() {
+      // In production, fetch from API
+      // fetch('/api/scada_data.php?action=get_all')
+      //   .then(res => res.json())
+      //   .then(data => {
+      //     sensorsData = data.sensors;
+      //     renderSensors();
+      //     updateStats();
+      //   });
+      
+      // For now, simulate small changes
+      sensorsData.forEach(s => {
+        s.level = Math.max(0, Math.min(100, s.level + (Math.random() - 0.5) * 2));
+        s.volume = (s.capacity * s.level) / 100;
+        s.lastUpdate = new Date().toLocaleString('pt-BR');
+      });
+      
+      renderSensors();
+      updateStats();
+    }
+
+    // Initialize
+    setTimeout(() => {
+      renderSensors();
+      updateStats();
+      initCharts();
+      
+      // Start polling
+      setInterval(pollData, POLL_INTERVAL);
+    }, 100);
+  </script>
+
+</body>
+</html>
