@@ -1,0 +1,59 @@
+{
+    "chat.mcp.serverSampling": {
+        "firmware_aguada/.vscode/mcp.json: microsoft/playwright-mcp": {
+            "allowedModels": [
+                "copilot/auto",
+                "copilot/claude-haiku-4.5",
+                "copilot/claude-opus-41",
+                "copilot/claude-sonnet-4",
+                "copilot/claude-sonnet-4.5",
+                "copilot/gemini-2.5-pro",
+                "copilot/gpt-5-mini",
+                "copilot/gpt-5-codex",
+                "copilot/gpt-5.1",
+                "copilot/gpt-5.1-codex",
+                "copilot/gpt-5.1-codex-mini"
+            ]
+        },
+        "firmware_aguada/.vscode/mcp.json: io.github.upstash/context7": {
+            "allowedModels": [
+                "copilot/auto"
+            ]
+        },
+        "firmware_aguada/.vscode/mcp.json: huggingface/hf-mcp-server": {
+            "allowedModels": [
+                "copilot/claude-haiku-4.5",
+                "copilot/auto"
+            ]
+        },
+        "firmware_aguada/.vscode/mcp.json: io.github.github/github-mcp-server": {
+            "allowedModels": [
+                "copilot/auto"
+            ]
+        },
+        "firmware_aguada/.vscode/mcp.json: microsoft/markitdown": {
+            "allowedModels": [
+                "copilot/auto"
+            ]
+        },
+        "firmware_aguada/.vscode/mcp.json: doist/todoist-ai": {
+            "allowedModels": [
+                "copilot/auto"
+            ]
+        }
+    },
+    "idf.pythonInstallPath": "/usr/bin/python",
+    "cmake.ignoreCMakeListsMissing": true,
+    "idf.flashType": "JTAG",
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
+    "C_Cpp.default.intelliSenseMode": "gcc-x64",
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.cStandard": "c11",
+    "cmake.configureOnOpen": true,
+    "idf.currentSetup": "/home/luciano/.espressif/v5.5.1/esp-idf",
+    "idf.port": "/dev/ttyACM0",
+    "idf.openOcdConfigs": [
+        "board/esp32c3-builtin.cfg"
+    ],
+    "python.defaultInterpreterPath": "/usr/bin/python"
+}

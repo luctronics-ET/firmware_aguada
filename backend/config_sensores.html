@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração de Sensores - Aguada</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .device-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        .device-card:hover {
+            transform: translateY(-5px);
+        }
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .device-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        .device-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        .status-online { background: #4ade80; color: white; }
+        .status-offline { background: #ef4444; color: white; }
+        .status-loading { background: #fbbf24; color: white; }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 500;
+            display: none;
+        }
+        .message-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .message-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        
+        .telemetry {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .telemetry-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .telemetry-row:last-child {
+            border-bottom: none;
+        }
+        .telemetry-label {
+            font-weight: 600;
+            color: #6b7280;
+        }
+        .telemetry-value {
+            color: #111827;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Configuração de Sensores</h1>
+        <div class="devices-grid" id="devices-container">
+            <!-- Dispositivos serão carregados dinamicamente -->
+        </div>
+    </div>
+
+    <script>
+        // Lista de dispositivos conhecidos
+        const devices = [
+            { ip: '192.168.0.222', name: 'Nano Ethernet', type: 'nano' },
+            // Adicionar ESP32 nodes aqui quando tiverem endpoint de config
+        ];
+
+        async function loadDeviceConfig(device) {
+            try {
+                const response = await fetch(`http://${device.ip}/config`);
+                if (!response.ok) throw new Error('Offline');
+                const config = await response.json();
+                return { ...config, status: 'online' };
+            } catch (error) {
+                return { status: 'offline', error: error.message };
+            }
+        }
+
+        async function loadDeviceTelemetry(device) {
+            try {
+                const response = await fetch(`http://${device.ip}/`);
+                if (!response.ok) throw new Error('Offline');
+                return await response.json();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        async function saveDeviceConfig(device, config) {
+            const response = await fetch(`http://${device.ip}/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            return await response.json();
+        }
+
+        async function resetDeviceConfig(device) {
+            const response = await fetch(`http://${device.ip}/reset`);
+            return await response.json();
+        }
+
+        function createDeviceCard(device, config, telemetry) {
+            const card = document.createElement('div');
+            card.className = 'device-card';
+            card.id = `device-${device.ip.replace(/\./g, '-')}`;
+            
+            const statusClass = config.status === 'online' ? 'status-online' : 'status-offline';
+            const statusText = config.status === 'online' ? 'Online' : 'Offline';
+            
+            let telemetryHTML = '';
+            if (telemetry) {
+                telemetryHTML = `
+                    <div class="telemetry">
+                        <div class="telemetry-row">
+                            <span class="telemetry-label">Distância:</span>
+                            <span class="telemetry-value">${telemetry.distance_cm} cm</span>
+                        </div>
+                        <div class="telemetry-row">
+                            <span class="telemetry-label">Nível:</span>
+                            <span class="telemetry-value">${telemetry.level_cm} cm</span>
+                        </div>
+                        <div class="telemetry-row">
+                            <span class="telemetry-label">Percentual:</span>
+                            <span class="telemetry-value">${telemetry.percentual}%</span>
+                        </div>
+                        <div class="telemetry-row">
+                            <span class="telemetry-label">Volume:</span>
+                            <span class="telemetry-value">${telemetry.volume_l.toLocaleString()} L</span>
+                        </div>
+                        <div class="telemetry-row">
+                            <span class="telemetry-label">Sequência:</span>
+                            <span class="telemetry-value">#${telemetry.seq}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            card.innerHTML = `
+                <div class="device-header">
+                    <div class="device-name">${device.name}</div>
+                    <div class="device-status ${statusClass}">${statusText}</div>
+                </div>
+                
+                <div class="message message-success" id="msg-success-${device.ip.replace(/\./g, '-')}"></div>
+                <div class="message message-error" id="msg-error-${device.ip.replace(/\./g, '-')}"></div>
+                
+                ${config.status === 'online' ? `
+                    <form id="form-${device.ip.replace(/\./g, '-')}" onsubmit="handleSave(event, '${device.ip}')">
+                        <div class="form-group">
+                            <label>Node ID:</label>
+                            <input type="number" name="node_id" value="${config.node_id}" min="1" max="255" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>IP do Backend:</label>
+                            <input type="text" name="backend_ip" value="${config.backend_ip}" pattern="\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}" required>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Porta Backend:</label>
+                                <input type="number" name="backend_port" value="${config.backend_port}" min="1" max="65535" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Intervalo POST (s):</label>
+                                <input type="number" name="post_interval_s" value="${config.post_interval_s}" min="1" max="3600" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Offset Sensor (cm):</label>
+                                <input type="number" name="sensor_offset_cm" value="${config.sensor_offset_cm}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Altura Res. (cm):</label>
+                                <input type="number" name="res_height_cm" value="${config.res_height_cm}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Volume Total (L):</label>
+                            <input type="number" name="res_volume_l" value="${config.res_volume_l}" required>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Amostras Média:</label>
+                                <input type="number" name="sample_count" value="${config.sample_count}" min="1" max="10" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Delay Amostras (ms):</label>
+                                <input type="number" name="sample_delay_ms" value="${config.sample_delay_ms}" min="0" max="1000" required>
+                            </div>
+                        </div>
+                        
+                        ${telemetryHTML}
+                        
+                        <div class="actions">
+                            <button type="submit" class="btn btn-primary">💾 Salvar</button>
+                            <button type="button" class="btn btn-secondary" onclick="loadAllDevices()">🔄 Recarregar</button>
+                            <button type="button" class="btn btn-danger" onclick="handleReset('${device.ip}')">⚠️ Reset</button>
+                        </div>
+                    </form>
+                ` : `
+                    <p style="color: #6b7280; text-align: center; padding: 20px;">
+                        Dispositivo offline ou inacessível.<br>
+                        IP: ${device.ip}
+                    </p>
+                    <div class="actions">
+                        <button type="button" class="btn btn-secondary" onclick="loadAllDevices()">🔄 Tentar Novamente</button>
+                    </div>
+                `}
+            `;
+            
+            return card;
+        }
+
+        async function handleSave(event, ip) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            
+            const config = {
+                node_id: parseInt(formData.get('node_id')),
+                backend_ip: formData.get('backend_ip'),
+                backend_port: parseInt(formData.get('backend_port')),
+                sensor_offset_cm: parseInt(formData.get('sensor_offset_cm')),
+                res_height_cm: parseInt(formData.get('res_height_cm')),
+                res_volume_l: parseInt(formData.get('res_volume_l')),
+                post_interval_s: parseInt(formData.get('post_interval_s')),
+                sample_count: parseInt(formData.get('sample_count')),
+                sample_delay_ms: parseInt(formData.get('sample_delay_ms'))
+            };
+            
+            const device = devices.find(d => d.ip === ip);
+            const msgSuccess = document.getElementById(`msg-success-${ip.replace(/\./g, '-')}`);
+            const msgError = document.getElementById(`msg-error-${ip.replace(/\./g, '-')}`);
+            
+            try {
+                const result = await saveDeviceConfig(device, config);
+                msgSuccess.textContent = '✅ ' + result.message;
+                msgSuccess.style.display = 'block';
+                msgError.style.display = 'none';
+                
+                setTimeout(() => {
+                    msgSuccess.style.display = 'none';
+                }, 5000);
+            } catch (error) {
+                msgError.textContent = '❌ Erro ao salvar: ' + error.message;
+                msgError.style.display = 'block';
+                msgSuccess.style.display = 'none';
+            }
+        }
+
+        async function handleReset(ip) {
+            if (!confirm('Restaurar configuração padrão? O dispositivo precisará ser reiniciado.')) {
+                return;
+            }
+            
+            const device = devices.find(d => d.ip === ip);
+            const msgSuccess = document.getElementById(`msg-success-${ip.replace(/\./g, '-')}`);
+            const msgError = document.getElementById(`msg-error-${ip.replace(/\./g, '-')}`);
+            
+            try {
+                const result = await resetDeviceConfig(device);
+                msgSuccess.textContent = '✅ ' + result.message;
+                msgSuccess.style.display = 'block';
+                msgError.style.display = 'none';
+                
+                setTimeout(() => {
+                    loadAllDevices();
+                }, 2000);
+            } catch (error) {
+                msgError.textContent = '❌ Erro ao resetar: ' + error.message;
+                msgError.style.display = 'block';
+                msgSuccess.style.display = 'none';
+            }
+        }
+
+        async function loadAllDevices() {
+            const container = document.getElementById('devices-container');
+            container.innerHTML = '<p style="color: white; text-align: center;">Carregando dispositivos...</p>';
+            
+            const deviceCards = [];
+            
+            for (const device of devices) {
+                const config = await loadDeviceConfig(device);
+                const telemetry = config.status === 'online' ? await loadDeviceTelemetry(device) : null;
+                deviceCards.push(createDeviceCard(device, config, telemetry));
+            }
+            
+            container.innerHTML = '';
+            deviceCards.forEach(card => container.appendChild(card));
+        }
+
+        // Carregar ao iniciar
+        loadAllDevices();
+        
+        // Auto-refresh a cada 30s
+        setInterval(loadAllDevices, 30000);
+    </script>
+</body>
+</html>

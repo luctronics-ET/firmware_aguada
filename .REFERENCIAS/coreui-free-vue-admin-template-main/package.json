@@ -1,0 +1,45 @@
+{
+  "name": "@coreui/coreui-free-vue-admin-template",
+  "version": "5.4.0",
+  "description": "CoreUI Free Vue Admin Template",
+  "bugs": {
+    "url": "https://github.com/coreui/coreui-free-vue-admin-template/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:coreui/coreui-free-vue-admin-template.git"
+  },
+  "license": "MIT",
+  "author": "The CoreUI Team (https://github.com/orgs/coreui/people)",
+  "scripts": {
+    "dev": "vite --force",
+    "build": "vite build",
+    "lint": "eslint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@coreui/chartjs": "^4.1.0",
+    "@coreui/coreui": "^5.4.1",
+    "@coreui/icons": "^3.0.1",
+    "@coreui/icons-vue": "2.2.0",
+    "@coreui/utils": "^2.0.2",
+    "@coreui/vue": "^5.5.0",
+    "@coreui/vue-chartjs": "^3.0.0",
+    "@popperjs/core": "^2.11.8",
+    "chart.js": "^4.5.0",
+    "pinia": "^3.0.3",
+    "simplebar-vue": "^2.4.2",
+    "vue": "^3.5.18",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.32.0",
+    "eslint-plugin-vue": "^10.4.0",
+    "globals": "^16.3.0",
+    "postcss": "^8.5.6",
+    "sass": "^1.90.0",
+    "vite": "^7.1.0"
+  }
+}

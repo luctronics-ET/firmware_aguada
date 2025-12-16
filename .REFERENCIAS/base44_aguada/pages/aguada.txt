@@ -1,0 +1,522 @@
+
+import React, { useState, useEffect, useMemo } from "react";
+import { ReservatorioAguada } from "@/entities/ReservatorioAguada";
+import { BombaAguada } from "@/entities/BombaAguada";
+import { ValvulaAguada } from "@/entities/ValvulaAguada";
+import { ConsumoAguada } from "@/entities/ConsumoAguada";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area } from 'recharts';
+import { Droplets, Zap, TrendingUp, AlertTriangle, Activity, Power, Settings, Circle, Filter, ChevronUp, ChevronDown } from "lucide-react";
+import { format } from "date-fns";
+
+export default function Aguada() {
+  const [reservatorios, setReservatorios] = useState([]);
+  const [bombas, setBombas] = useState([]);
+  const [valvulas, setValvulas] = useState([]);
+  const [consumoData, setConsumoData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Estados para filtros e ordenação
+  const [filtroReservatorio, setFiltroReservatorio] = useState('todos');
+  const [filtroBomba, setFiltroBomba] = useState('todos');
+  const [filtroValvula, setFiltroValvula] = useState('todos');
+  const [ordenacaoReservatorio, setOrdenacaoReservatorio] = useState({ coluna: '', direcao: '' });
+  const [ordenacaoBomba, setOrdenacaoBomba] = useState({ coluna: '', direcao: '' });
+  const [ordenacaoValvula, setOrdenacaoValvula] = useState({ coluna: '', direcao: '' });
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 30000);
+    document.title = "CMASM - Aguada";
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [reservatoriosData, bombasData, valvulasData, consumoDataRes] = await Promise.all([
+        ReservatorioAguada.list('-created_date'),
+        BombaAguada.list('numero'),
+        ValvulaAguada.list('-last_change'),
+        ConsumoAguada.list('-data_medicao', 24)
+      ]);
+      
+      // Remover duplicatas baseado no nome+tipo
+      const reservatoriosUnicos = reservatoriosData.filter((r, index, self) => 
+        index === self.findIndex(t => t.nome === r.nome && t.tipo === r.tipo)
+      );
+      const bombasUnicas = bombasData.filter((b, index, self) => 
+        index === self.findIndex(t => t.numero === b.numero)
+      );
+      const valvulasUnicas = valvulasData.filter((v, index, self) => 
+        index === self.findIndex(t => t.nome === v.nome)
+      );
+      
+      setReservatorios(reservatoriosUnicos);
+      setBombas(bombasUnicas);
+      setValvulas(valvulasUnicas);
+      setConsumoData(consumoDataRes);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    }
+    setIsLoading(false);
+  };
+
+  const toggleBomba = async (bomba) => {
+    const novoStatus = bomba.status === 'ligada' ? 'desligada' : 'ligada';
+    await BombaAguada.update(bomba.id, {
+      status: novoStatus,
+      ultima_verificacao: new Date().toISOString()
+    });
+    loadData();
+  };
+
+  const toggleValvula = async (valvula) => {
+    const novoStatus = valvula.status === 'aberta' ? 'fechada' : 'aberta';
+    await ValvulaAguada.update(valvula.id, {
+      status: novoStatus,
+      last_change: new Date().toISOString(),
+      alterado_por: 'usuario'
+    });
+    loadData();
+  };
+
+  // Função de ordenação
+  const ordenarDados = (dados, ordenacao) => {
+    if (!ordenacao.coluna) return dados;
+    
+    return [...dados].sort((a, b) => {
+      let valorA = a[ordenacao.coluna];
+      let valorB = b[ordenacao.coluna];
+      
+      if (typeof valorA === 'string') {
+        valorA = valorA.toLowerCase();
+        valorB = valorB.toLowerCase();
+      }
+      
+      if (ordenacao.direcao === 'asc') {
+        return valorA > valorB ? 1 : -1;
+      } else {
+        return valorA < valorB ? 1 : -1;
+      }
+    });
+  };
+
+  // Dados filtrados e ordenados
+  const reservatoriosFiltrados = useMemo(() => {
+    let dados = reservatorios;
+    if (filtroReservatorio !== 'todos') {
+      dados = dados.filter(r => r.status_alarme === filtroReservatorio);
+    }
+    return ordenarDados(dados, ordenacaoReservatorio);
+  }, [reservatorios, filtroReservatorio, ordenacaoReservatorio]);
+
+  const bombasFiltradas = useMemo(() => {
+    let dados = bombas;
+    if (filtroBomba !== 'todos') {
+      dados = dados.filter(b => b.status === filtroBomba);
+    }
+    return ordenarDados(dados, ordenacaoBomba);
+  }, [bombas, filtroBomba, ordenacaoBomba]);
+
+  const valvulasFiltradas = useMemo(() => {
+    let dados = valvulas;
+    if (filtroValvula !== 'todos') {
+      dados = dados.filter(v => v.status === filtroValvula);
+    }
+    return ordenarDados(dados, ordenacaoValvula);
+  }, [valvulas, filtroValvula, ordenacaoValvula]);
+
+  const handleSort = (tabela, coluna) => {
+    const setOrdenacao = tabela === 'reservatorio' ? setOrdenacaoReservatorio : 
+                        tabela === 'bomba' ? setOrdenacaoBomba : setOrdenacaoValvula;
+    const ordenacaoAtual = tabela === 'reservatorio' ? ordenacaoReservatorio : 
+                          tabela === 'bomba' ? ordenacaoBomba : ordenacaoValvula;
+    
+    setOrdenacao({
+      coluna,
+      direcao: ordenacaoAtual.coluna === coluna && ordenacaoAtual.direcao === 'asc' ? 'desc' : 'asc'
+    });
+  };
+
+  const SortIcon = ({ tabela, coluna }) => {
+    const ordenacao = tabela === 'reservatorio' ? ordenacaoReservatorio : 
+                     tabela === 'bomba' ? ordenacaoBomba : ordenacaoValvula;
+    
+    if (ordenacao.coluna !== coluna) return null;
+    return ordenacao.direcao === 'asc' ? 
+      <ChevronUp className="w-3 h-3 inline ml-1" /> : 
+      <ChevronDown className="w-3 h-3 inline ml-1" />;
+  };
+
+  // Cálculos
+  const casteloConsumo = reservatorios.find(r => r.tipo === 'castelo_consumo');
+  const casteloIncendio = reservatorios.find(r => r.tipo === 'castelo_incendio');
+  const cisternasIF = reservatorios.filter(r => r.tipo === 'cisterna_if');
+  const bombasAtivas = bombas.filter(b => b.status === 'ligada').length;
+  const alertasAtivos = reservatorios.filter(r => r.status_alarme !== 'normal').length;
+
+  const volumeIF = cisternasIF.reduce((sum, c) => sum + (c.volume_atual || 0), 0);
+  const capacidadeIF = cisternasIF.reduce((sum, c) => sum + c.capacidade_total, 0);
+  const percentualIF = capacidadeIF > 0 ? (volumeIF / capacidadeIF * 100) : 0;
+
+  const hoje = new Date().toDateString();
+  const consumoHoje = consumoData
+    .filter(c => new Date(c.data_medicao).toDateString() === hoje)
+    .reduce((sum, c) => sum + (c.consumo_parcial || 0), 0);
+
+  const dadosGrafico = consumoData.map(item => ({
+    hora: format(new Date(item.data_medicao), 'HH:mm'),
+    volume: item.volume_atual,
+    consumo: item.consumo_parcial || 0
+  })).reverse();
+
+  const getStatusColor = (status) => {
+    const colors = {
+      normal: 'text-green-400', atencao: 'text-amber-400', urgente: 'text-orange-400', emergencia: 'text-red-400',
+      ligada: 'text-green-400', desligada: 'text-slate-500', manutencao: 'text-orange-400', erro: 'text-red-400',
+      aberta: 'text-green-400', fechada: 'text-slate-400'
+    };
+    return colors[status] || 'text-slate-400';
+  };
+
+  const getStatusBg = (status) => {
+    const colors = {
+      normal: 'bg-green-500/20', atencao: 'bg-amber-500/20', urgente: 'bg-orange-500/20', emergencia: 'bg-red-500/20',
+      ligada: 'bg-green-500/20', desligada: 'bg-slate-600/20', manutencao: 'bg-orange-500/20', erro: 'bg-red-500/20',
+      aberta: 'bg-green-500/20', fechada: 'bg-slate-600/20'
+    };
+    return colors[status] || 'bg-slate-600/20';
+  };
+
+  const getNivelBarColor = (percent, tipo) => {
+    const isIncendio = tipo === 'castelo_incendio';
+    if ((isIncendio && percent < 30) || (!isIncendio && percent < 20)) return 'bg-red-500';
+    if ((isIncendio && percent < 50) || (!isIncendio && percent < 40)) return 'bg-orange-500';
+    if ((isIncendio && percent < 80) || (!isIncendio && percent < 60)) return 'bg-amber-500';
+    return 'bg-sky-500';
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Sistema Aguada</h1>
+          <p className="text-sm text-slate-400">CMASM - Monitoramento da Rede Hidráulica</p>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg px-3 py-1.5 border border-slate-700 flex items-center gap-2">
+            <Activity className="w-3 h-3 text-green-400" />
+            <span className="text-xs font-medium text-slate-300">Sistema Online</span>
+        </div>
+      </div>
+
+      <div className="bg-slate-800/50 border border-slate-700/80 rounded-xl p-4 shadow-lg">
+        <h2 className="text-base font-semibold text-white mb-3">
+          Volume Castelo Consumo - Últimas 24h
+        </h2>
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dadosGrafico} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+              <XAxis dataKey="hora" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <YAxis yAxisId="left" unit="T" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <YAxis yAxisId="right" orientation="right" unit="T" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <Tooltip 
+                contentStyle={{
+                  background: 'rgba(20, 20, 20, 0.8)', backdropFilter: 'blur(5px)', border: '1px solid #334155', borderRadius: '8px', color: '#e2e8f0'
+                }}
+                itemStyle={{ fontSize: 12 }}
+                labelStyle={{ fontSize: 12, fontWeight: 'bold' }}
+              />
+              <defs>
+                <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <Area type="monotone" yAxisId="left" dataKey="volume" stroke="#38bdf8" strokeWidth={2} fill="url(#colorVolume)" name="Volume (T)" />
+              <Line type="monotone" yAxisId="right" dataKey="consumo" stroke="#34d399" strokeWidth={2} dot={false} name="Consumo (T)" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        {[
+          { icon: TrendingUp, label: "Consumo Diário", value: `${consumoHoje.toFixed(1)} T`, color: 'text-green-400' },
+          { icon: Droplets, label: "Castelo Consumo", value: casteloConsumo ? `${casteloConsumo.percentual_nivel.toFixed(1)}%` : 'N/A', color: 'text-sky-400' },
+          { icon: Droplets, label: "Castelo Incêndio", value: casteloIncendio ? `${casteloIncendio.percentual_nivel.toFixed(1)}%` : 'N/A', color: 'text-red-400' },
+          { icon: Droplets, label: "Cisternas IF", value: `${percentualIF.toFixed(1)}%`, color: 'text-cyan-400' }
+        ].map(item => (
+          <div key={item.label} className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/80 flex items-center gap-3">
+             <div className={`bg-slate-700/50 p-2 rounded-md border border-slate-600`}>
+                <item.icon className={`w-4 h-4 ${item.color}`} />
+              </div>
+            <div>
+              <p className="text-xs text-slate-400">{item.label}</p>
+              <p className="text-lg font-bold text-white">{item.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela de Reservatórios */}
+      <div className="bg-slate-800/50 border border-slate-700/80 rounded-xl shadow-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-base font-semibold text-white">Status dos Reservatórios</h2>
+            <div className="flex items-center gap-2">
+              <Filter className="w-3 h-3 text-slate-400" />
+              <select 
+                value={filtroReservatorio} 
+                onChange={(e) => setFiltroReservatorio(e.target.value)}
+                className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200"
+              >
+                <option value="todos">Todos</option>
+                <option value="normal">Normal</option>
+                <option value="atencao">Atenção</option>
+                <option value="urgente">Urgente</option>
+                <option value="emergencia">Emergência</option>
+              </select>
+            </div>
+          </div>
+          {alertasAtivos > 0 && (
+            <div className="bg-amber-500/20 rounded-lg px-3 py-1 border border-amber-500/30 flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-medium text-amber-300">{alertasAtivos} Alertas</span>
+            </div>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-slate-700 bg-slate-800/60">
+              <tr>
+                <th className="px-4 py-3 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('reservatorio', 'nome')}>
+                  Reservatório <SortIcon tabela="reservatorio" coluna="nome" />
+                </th>
+                <th className="px-4 py-3 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('reservatorio', 'status_alarme')}>
+                  Status <SortIcon tabela="reservatorio" coluna="status_alarme" />
+                </th>
+                <th className="px-4 py-3 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('reservatorio', 'percentual_nivel')}>
+                  Nível <SortIcon tabela="reservatorio" coluna="percentual_nivel" />
+                </th>
+                <th className="px-4 py-3 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('reservatorio', 'volume_atual')}>
+                  Volume <SortIcon tabela="reservatorio" coluna="volume_atual" />
+                </th>
+                <th className="px-4 py-3 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('reservatorio', 'capacidade_total')}>
+                  Capacidade <SortIcon tabela="reservatorio" coluna="capacidade_total" />
+                </th>
+                <th className="px-4 py-3 font-semibold text-slate-400">Sensor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reservatoriosFiltrados.map((r) => (
+                <tr key={r.id} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Droplets className="w-4 h-4 text-sky-400" />
+                      <div>
+                        <p className="font-medium text-slate-200">{r.nome}</p>
+                        <p className="text-xs text-slate-400 capitalize">{r.tipo.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBg(r.status_alarme)} ${getStatusColor(r.status_alarme)}`}>
+                      {r.status_alarme.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 bg-slate-700/50 rounded-full h-2 border border-slate-600/50">
+                        <div
+                          className={`${getNivelBarColor(r.percentual_nivel || 0, r.tipo)} h-full rounded-full transition-all`}
+                          style={{ width: `${Math.max(r.percentual_nivel || 0, 2)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-white font-medium">{(r.percentual_nivel || 0).toFixed(1)}%</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-slate-200">{(r.volume_atual || 0).toFixed(1)} T</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-slate-200">{r.capacidade_total} T</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-slate-400">#{r.sensor_nivel}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Tabela de Bombas */}
+        <div className="bg-slate-800/50 border border-slate-700/80 rounded-xl shadow-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h2 className="text-base font-semibold text-white">Bombas</h2>
+              <div className="flex items-center gap-2">
+                <Filter className="w-3 h-3 text-slate-400" />
+                <select 
+                  value={filtroBomba} 
+                  onChange={(e) => setFiltroBomba(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="ligada">Ligada</option>
+                  <option value="desligada">Desligada</option>
+                  <option value="manutencao">Manutenção</option>
+                  <option value="erro">Erro</option>
+                </select>
+              </div>
+            </div>
+            <div className="bg-slate-700/50 rounded-lg px-3 py-1 border border-slate-600 text-xs text-slate-300">
+              {bombasAtivas}/{bombas.length} Ativas
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-700 bg-slate-800/60">
+                <tr>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('bomba', 'nome')}>
+                    Bomba <SortIcon tabela="bomba" coluna="nome" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('bomba', 'status')}>
+                    Status <SortIcon tabela="bomba" coluna="status" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('bomba', 'tensao_atual')}>
+                    Tensão <SortIcon tabela="bomba" coluna="tensao_atual" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('bomba', 'horas_operacao')}>
+                    Horas <SortIcon tabela="bomba" coluna="horas_operacao" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bombasFiltradas.map((b) => (
+                  <tr key={b.id} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-orange-400" />
+                        <div>
+                          <p className="font-medium text-slate-200">{b.nome}</p>
+                          <p className="text-xs text-slate-400">Casa {b.casa_bombas}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBg(b.status)} ${getStatusColor(b.status)}`}>
+                        {b.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="font-medium text-slate-200">{b.tensao_atual || 0} V</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="font-medium text-slate-200">{b.horas_operacao || 0}h</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => toggleBomba(b)}
+                        disabled={b.status === 'manutencao' || b.status === 'erro'}
+                        className={`p-1.5 rounded-md transition-all duration-300 ${
+                          b.status === 'ligada' 
+                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                            : 'bg-slate-600/20 text-slate-400 hover:bg-slate-600/30'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tabela de Válvulas */}
+        <div className="bg-slate-800/50 border border-slate-700/80 rounded-xl shadow-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h2 className="text-base font-semibold text-white">Válvulas</h2>
+              <div className="flex items-center gap-2">
+                <Filter className="w-3 h-3 text-slate-400" />
+                <select 
+                  value={filtroValvula} 
+                  onChange={(e) => setFiltroValvula(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="aberta">Aberta</option>
+                  <option value="fechada">Fechada</option>
+                </select>
+              </div>
+            </div>
+            <div className="bg-slate-700/50 rounded-lg px-3 py-1 border border-slate-600 text-xs text-slate-300">
+              {valvulas.filter(v => v.status === 'aberta').length} Abertas
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-700 bg-slate-800/60">
+                <tr>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('valvula', 'nome')}>
+                    Válvula <SortIcon tabela="valvula" coluna="nome" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('valvula', 'status')}>
+                    Status <SortIcon tabela="valvula" coluna="status" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400 cursor-pointer hover:text-slate-200" onClick={() => handleSort('valvula', 'alterado_por')}>
+                    Alterado Por <SortIcon tabela="valvula" coluna="alterado_por" />
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-slate-400">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valvulasFiltradas.map((v) => (
+                  <tr key={v.id} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <p className="font-medium text-slate-200">{v.nome}</p>
+                          <p className="text-xs text-slate-400 uppercase">{v.tipo}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBg(v.status)} ${getStatusColor(v.status)}`}>
+                        {v.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="text-slate-300 capitalize">{v.alterado_por || 'Sistema'}</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => toggleValvula(v)}
+                        className={`p-1.5 rounded-md transition-all duration-300 ${
+                          v.status === 'aberta' 
+                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                            : 'bg-slate-600/20 text-slate-400 hover:bg-slate-600/30'
+                        }`}
+                      >
+                        <Circle className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

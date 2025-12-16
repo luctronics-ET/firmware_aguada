@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS leituras_v2 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  node_id TINYINT UNSIGNED,
+  mac VARCHAR(17),
+  seq INT UNSIGNED,
+  version TINYINT UNSIGNED,
+  distance_cm INT,
+  level_cm INT,
+  percentual FLOAT,
+  volume_l INT,
+  vin_mv INT,
+  rssi INT,
+  ts_ms BIGINT UNSIGNED,
+  raw JSON NULL,
+  KEY idx_ts (ts),
+  KEY idx_node (node_id),
+  KEY idx_mac (mac),
+  KEY idx_seq (seq)
+);

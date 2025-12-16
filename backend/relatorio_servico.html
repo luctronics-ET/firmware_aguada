@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Serviço - AGUADA</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Header */
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            color: #0066CC;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .header .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* Formulário de Identificação */
+        .form-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0066CC;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #0066CC;
+        }
+        
+        /* Tabela de Reservatórios */
+        .table-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            background: #0066CC;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover {
+            background: #f9f9f9;
+        }
+        .auto-fill {
+            background: #e6f7ff;
+            font-weight: 600;
+            color: #0066CC;
+        }
+        .sensor-badge {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 5px;
+        }
+        input.table-input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            text-align: center;
+        }
+        select.table-select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        /* Balanço Hídrico */
+        .balance-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .balance-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .balance-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        .balance-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .balance-card .unit {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        .balance-card.consumption {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .balance-card.supply {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .balance-card.variation {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        /* Botões de Ação */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            justify-content: flex-end;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #0066CC;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0052a3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,102,204,0.3);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-normal { background: #d4edda; color: #155724; }
+        .status-alerta { background: #fff3cd; color: #856404; }
+        .status-critico { background: #f8d7da; color: #721c24; }
+        
+        /* Print Styles */
+        @media print {
+            body { background: white; padding: 0; }
+            .action-buttons { display: none; }
+            .form-section, .table-section { box-shadow: none; }
+        }
+        
+        /* Loading Indicator */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0066CC;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 2L2 7v10c0 5.5 3.8 10 10 10s10-4.5 10-10V7l-10-5z" stroke-width="2"/>
+                </svg>
+                RELATÓRIO DE SERVIÇO - SISTEMA AGUADA
+            </h1>
+            <div class="subtitle">Sistema de Monitoramento e Gestão de Redes Hídricas</div>
+        </div>
+
+        <!-- Identificação do Relatório -->
+        <div class="form-section">
+            <h2>📋 Identificação do Relatório</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="data_relatorio">Data do Relatório *</label>
+                    <input type="date" id="data_relatorio" required>
+                </div>
+                <div class="form-group">
+                    <label for="turno">Turno *</label>
+                    <select id="turno" required>
+                        <option value="">Selecione...</option>
+                        <option value="MANHA">Manhã (06:00 - 14:00)</option>
+                        <option value="TARDE">Tarde (14:00 - 22:00)</option>
+                        <option value="NOITE">Noite (22:00 - 06:00)</option>
+                        <option value="24H">24 Horas</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="operador">Operador Responsável *</label>
+                    <input type="text" id="operador" placeholder="Nome completo" required>
+                </div>
+                <div class="form-group">
+                    <label for="supervisor">Supervisor</label>
+                    <input type="text" id="supervisor" placeholder="Nome do supervisor">
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="status_geral">Status Geral do Sistema</label>
+                    <select id="status_geral">
+                        <option value="NORMAL">✓ Normal</option>
+                        <option value="ALERTA">⚠ Alerta</option>
+                        <option value="EMERGENCIA">🚨 Emergência</option>
+                        <option value="MANUTENCAO">🔧 Manutenção</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="condicoes_climaticas">Condições Climáticas</label>
+                    <input type="text" id="condicoes_climaticas" placeholder="Ex: Sol, 25°C">
+                </div>
+            </div>
+        </div>
+
+        <!-- Dados dos Reservatórios -->
+        <div class="table-section">
+            <h2>💧 Dados dos Reservatórios</h2>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Carregando dados dos sensores...</p>
+            </div>
+            <table id="table_reservatorios" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Reservatório</th>
+                        <th>Nível Inicial<br>(cm)</th>
+                        <th>Nível Final<br>(cm)</th>
+                        <th>% Inicial</th>
+                        <th>% Final</th>
+                        <th>Vol. Inicial<br>(L)</th>
+                        <th>Vol. Final<br>(L)</th>
+                        <th>Consumo<br>(L)</th>
+                        <th>Abastecimento<br>(L)</th>
+                        <th>Bomba</th>
+                        <th>Válvula<br>Entrada</th>
+                        <th>Válvula<br>Saída</th>
+                        <th>Estado</th>
+                        <th>Obs.</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody_reservatorios">
+                    <!-- Preenchido dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Balanço Hídrico Consolidado -->
+        <div class="form-section">
+            <h2>📊 Balanço Hídrico do Período</h2>
+            <div class="balance-cards">
+                <div class="balance-card consumption">
+                    <h3>Consumo Total</h3>
+                    <div class="value" id="consumo_total">0</div>
+                    <div class="unit">litros | <span id="consumo_m3">0</span> m³</div>
+                </div>
+                <div class="balance-card supply">
+                    <h3>Abastecimento Total</h3>
+                    <div class="value" id="abastecimento_total">0</div>
+                    <div class="unit">litros | <span id="abastecimento_m3">0</span> m³</div>
+                </div>
+                <div class="balance-card variation">
+                    <h3>Variação Líquida</h3>
+                    <div class="value" id="variacao_total">0</div>
+                    <div class="unit">litros | <span id="variacao_pct">0</span>%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Observações -->
+        <div class="form-section">
+            <h2>📝 Observações e Ocorrências</h2>
+            <div class="form-group">
+                <label for="ocorrencias">Ocorrências do Turno</label>
+                <textarea id="ocorrencias" placeholder="Descreva eventos importantes, anomalias, alertas, etc..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="manutencoes">Manutenções Realizadas</label>
+                <textarea id="manutencoes" placeholder="Liste os serviços de manutenção executados..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="pendencias">Pendências</label>
+                <textarea id="pendencias" placeholder="Tarefas pendentes para os próximos turnos..."></textarea>
+            </div>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div class="action-buttons">
+            <button class="btn-secondary" onclick="window.print()">🖨️ Imprimir</button>
+            <button class="btn-warning" onclick="salvarRascunho()">💾 Salvar Rascunho</button>
+            <button class="btn-primary" onclick="salvarRelatorio()">✓ Finalizar Relatório</button>
+            <button class="btn-success" onclick="validarRelatorio()" style="display:none;" id="btn_validar">✓ Validar (Supervisor)</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuração da API
+        const API_URL = 'http://localhost:8080/api';
+        
+        // Estado global
+        let reservatorios = [];
+        let dadosSensores = {};
+        
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Definir data atual
+            document.getElementById('data_relatorio').valueAsDate = new Date();
+            
+            // Carregar dados dos sensores
+            await carregarDadosSensores();
+            
+            // Preencher tabela
+            preencherTabelaReservatorios();
+            
+            // Ocultar loading
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('table_reservatorios').style.display = 'table';
+        });
+        
+        // Carregar dados em tempo real dos sensores
+        async function carregarDadosSensores() {
+            try {
+                const response = await fetch(`${API_URL}/scada_data.php?action=get_all`);
+                const data = await response.json();
+                
+                // Armazenar dados
+                dadosSensores = data;
+                reservatorios = data.elementos.filter(e => 
+                    ['RCON', 'RCAV', 'RCB3', 'CIF1', 'CIF2', 'RCIF', 'CIE1', 'CIE2'].includes(e.alias)
+                );
+                
+                console.log('Dados carregados:', reservatorios.length, 'reservatórios');
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                alert('Erro ao carregar dados dos sensores. Verifique a conexão com o backend.');
+            }
+        }
+        
+        // Preencher tabela com dados dos reservatórios
+        function preencherTabelaReservatorios() {
+            const tbody = document.getElementById('tbody_reservatorios');
+            tbody.innerHTML = '';
+            
+            reservatorios.forEach(res => {
+                const hasSensor = res.sensor_node_id !== null;
+                const ultimaLeitura = hasSensor ? buscarUltimaLeitura(res.sensor_node_id) : null;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <strong>${res.alias}</strong>
+                        ${hasSensor ? '<span class="sensor-badge">SENSOR</span>' : ''}
+                        <br><small style="color:#666;">${res.nome}</small>
+                    </td>
+                    <td><input type="number" class="table-input" id="nivel_ini_${res.alias}" 
+                        value="${ultimaLeitura ? ultimaLeitura.level_cm : ''}" 
+                        ${hasSensor ? 'class="table-input auto-fill"' : 'class="table-input"'}></td>
+                    <td><input type="number" class="table-input" id="nivel_fim_${res.alias}"></td>
+                    <td><input type="number" class="table-input" id="pct_ini_${res.alias}" 
+                        value="${ultimaLeitura ? ultimaLeitura.percentual : ''}" 
+                        ${hasSensor ? 'class="table-input auto-fill"' : 'class="table-input"'}></td>
+                    <td><input type="number" class="table-input" id="pct_fim_${res.alias}"></td>
+                    <td><input type="number" class="table-input" id="vol_ini_${res.alias}" 
+                        value="${ultimaLeitura ? ultimaLeitura.volume_l : ''}" 
+                        ${hasSensor ? 'class="table-input auto-fill"' : 'class="table-input"'}></td>
+                    <td><input type="number" class="table-input" id="vol_fim_${res.alias}"></td>
+                    <td><input type="number" class="table-input" id="consumo_${res.alias}" readonly 
+                        style="background:#f9f9f9;"></td>
+                    <td><input type="number" class="table-input" id="abast_${res.alias}"></td>
+                    <td>
+                        <select class="table-select" id="bomba_${res.alias}">
+                            <option value="">-</option>
+                            <option value="BOR_CB3_ME1">ME1 (Elétrica)</option>
+                            <option value="BOR_CB3_MD1">MD1 (Diesel)</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="table-select" id="valv_in_${res.alias}">
+                            <option value="ABERTA">Aberta</option>
+                            <option value="FECHADA">Fechada</option>
+                            <option value="PARCIAL">Parcial</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="table-select" id="valv_out_${res.alias}">
+                            <option value="ABERTA">Aberta</option>
+                            <option value="FECHADA">Fechada</option>
+                            <option value="PARCIAL">Parcial</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="table-select" id="estado_${res.alias}">
+                            <option value="NORMAL">Normal</option>
+                            <option value="ALERTA">Alerta</option>
+                            <option value="CRITICO">Crítico</option>
+                            <option value="MANUTENCAO">Manutenção</option>
+                        </select>
+                    </td>
+                    <td><input type="text" style="width:150px;padding:5px;" id="obs_${res.alias}" 
+                        placeholder="Observações..."></td>
+                `;
+                tbody.appendChild(tr);
+                
+                // Adicionar listeners para cálculo automático de consumo
+                const volIniInput = document.getElementById(`vol_ini_${res.alias}`);
+                const volFimInput = document.getElementById(`vol_fim_${res.alias}`);
+                const consumoInput = document.getElementById(`consumo_${res.alias}`);
+                
+                [volIniInput, volFimInput].forEach(input => {
+                    input.addEventListener('input', () => {
+                        const ini = parseInt(volIniInput.value) || 0;
+                        const fim = parseInt(volFimInput.value) || 0;
+                        
+                        // BALANÇO = VOLUME_FINAL - VOLUME_INICIAL
+                        const balanco = fim - ini;
+                        
+                        // Se balanço < 0: CONSUMO (saída)
+                        // Se balanço > 0: ENTRADA (abastecimento)
+                        const consumo = balanco < 0 ? Math.abs(balanco) : 0;
+                        consumoInput.value = consumo;
+                        
+                        // Indicador visual
+                        if (balanco > 0) {
+                            consumoInput.style.backgroundColor = '#d1fae5';
+                            consumoInput.title = 'ENTRADA: Balanço positivo';
+                        } else if (balanco < 0) {
+                            const esperado = 10000;
+                            const anormal = consumo - esperado;
+                            const pct = (anormal / esperado) * 100;
+                            
+                            if (pct > 50) {
+                                consumoInput.style.backgroundColor = '#fee2e2';
+                                consumoInput.title = `CRÍTICO: ${pct.toFixed(0)}% acima - Vazamento!`;
+                            } else if (pct > 20) {
+                                consumoInput.style.backgroundColor = '#fef3c7';
+                                consumoInput.title = `ALERTA: ${pct.toFixed(0)}% acima`;
+                            } else {
+                                consumoInput.style.backgroundColor = '#fff';
+                                consumoInput.title = 'Consumo normal';
+                            }
+                        } else {
+                            consumoInput.style.backgroundColor = '#fff';
+                            consumoInput.title = 'Estável';
+                        }
+                        
+                        calcularBalancoTotal();
+                    });
+                });
+                
+                // Listener para abastecimento
+                document.getElementById(`abast_${res.alias}`).addEventListener('input', calcularBalancoTotal);
+            });
+        }
+        
+        // Buscar última leitura de um sensor
+        function buscarUltimaLeitura(nodeId) {
+            // Simulação - em produção, buscar do backend
+            const mockData = {
+                1: { level_cm: 154, percentual: 70, volume_l: 56000 },  // RCON
+                2: { level_cm: 67, percentual: 89, volume_l: 71200 }    // RCAV
+            };
+            return mockData[nodeId] || null;
+        }
+        
+        // Calcular balanço hídrico total
+        function calcularBalancoTotal() {
+            let consumoTotal = 0;
+            let abastTotal = 0;
+            
+            reservatorios.forEach(res => {
+                const consumo = parseInt(document.getElementById(`consumo_${res.alias}`).value) || 0;
+                const abast = parseInt(document.getElementById(`abast_${res.alias}`).value) || 0;
+                consumoTotal += consumo;
+                abastTotal += abast;
+            });
+            
+            // BALANÇO = ABASTECIMENTO - CONSUMO
+            const balancoTotal = abastTotal - consumoTotal;
+            
+            document.getElementById('consumo_total').textContent = consumoTotal.toLocaleString();
+            document.getElementById('consumo_m3').textContent = (consumoTotal / 1000).toFixed(2);
+            document.getElementById('abastecimento_total').textContent = abastTotal.toLocaleString();
+            document.getElementById('abastecimento_m3').textContent = (abastTotal / 1000).toFixed(2);
+            document.getElementById('variacao_total').textContent = balancoTotal.toLocaleString();
+            
+            // Percentual: balanço em relação ao consumo
+            const pctVariacao = consumoTotal > 0 ? ((balancoTotal / consumoTotal) * 100).toFixed(1) : 0;
+            document.getElementById('variacao_pct').textContent = pctVariacao;
+            
+            // Cor do indicador
+            const variacaoEl = document.getElementById('variacao_total');
+            if (balancoTotal > 0) {
+                variacaoEl.style.color = '#10b981'; // verde
+                variacaoEl.title = 'POSITIVO: Mais entrada que saída';
+            } else if (balancoTotal < 0) {
+                variacaoEl.style.color = '#ef4444'; // vermelho
+                variacaoEl.title = 'NEGATIVO: Mais saída que entrada';
+            } else {
+                variacaoEl.style.color = '#64748b'; // cinza
+                variacaoEl.title = 'ESTÁVEL';
+            }
+        }
+        
+        // Salvar relatório
+        async function salvarRelatorio() {
+            if (!validarFormulario()) return;
+            
+            const relatorio = coletarDadosFormulario();
+            
+            try {
+                const response = await fetch(`${API_URL}/relatorios.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(relatorio)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ Relatório salvo com sucesso!');
+                    // Redirecionar para lista de relatórios
+                    window.location.href = 'relatorios_lista.html';
+                } else {
+                    alert('Erro ao salvar: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao salvar relatório. Verifique a conexão.');
+            }
+        }
+        
+        // Salvar rascunho (localStorage)
+        function salvarRascunho() {
+            const relatorio = coletarDadosFormulario();
+            localStorage.setItem('relatorio_rascunho', JSON.stringify(relatorio));
+            alert('💾 Rascunho salvo localmente!');
+        }
+        
+        // Validar formulário
+        function validarFormulario() {
+            const campos = ['data_relatorio', 'turno', 'operador'];
+            for (const campo of campos) {
+                if (!document.getElementById(campo).value) {
+                    alert(`⚠ Campo obrigatório: ${campo}`);
+                    document.getElementById(campo).focus();
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Coletar dados do formulário
+        function coletarDadosFormulario() {
+            const relatorio = {
+                data_relatorio: document.getElementById('data_relatorio').value,
+                turno: document.getElementById('turno').value,
+                operador: document.getElementById('operador').value,
+                supervisor: document.getElementById('supervisor').value,
+                status_geral: document.getElementById('status_geral').value,
+                condicoes_climaticas: document.getElementById('condicoes_climaticas').value,
+                ocorrencias: document.getElementById('ocorrencias').value,
+                manutencoes: document.getElementById('manutencoes').value,
+                pendencias: document.getElementById('pendencias').value,
+                reservatorios: []
+            };
+            
+            reservatorios.forEach(res => {
+                relatorio.reservatorios.push({
+                    reservatorio_id: res.alias,
+                    nivel_inicial_cm: document.getElementById(`nivel_ini_${res.alias}`).value,
+                    nivel_final_cm: document.getElementById(`nivel_fim_${res.alias}`).value,
+                    percentual_inicial: document.getElementById(`pct_ini_${res.alias}`).value,
+                    percentual_final: document.getElementById(`pct_fim_${res.alias}`).value,
+                    volume_inicial_litros: document.getElementById(`vol_ini_${res.alias}`).value,
+                    volume_final_litros: document.getElementById(`vol_fim_${res.alias}`).value,
+                    consumo_litros: document.getElementById(`consumo_${res.alias}`).value,
+                    abastecimento_litros: document.getElementById(`abast_${res.alias}`).value,
+                    bomba_utilizada: document.getElementById(`bomba_${res.alias}`).value,
+                    valvula_entrada: document.getElementById(`valv_in_${res.alias}`).value,
+                    valvula_saida: document.getElementById(`valv_out_${res.alias}`).value,
+                    estado_operacional: document.getElementById(`estado_${res.alias}`).value,
+                    observacoes: document.getElementById(`obs_${res.alias}`).value
+                });
+            });
+            
+            return relatorio;
+        }
+        
+        // Validar relatório (supervisor)
+        async function validarRelatorio() {
+            const supervisor = prompt('Digite seu nome (Supervisor):');
+            if (!supervisor) return;
+            
+            // Implementar validação via API
+            alert('✓ Relatório validado por: ' + supervisor);
+        }
+    </script>
+</body>
+</html>

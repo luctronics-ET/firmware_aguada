@@ -1,0 +1,6 @@
+# Coloque overrides de configuração do ESP-IDF aqui.
+# Exemplos úteis:
+# CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+# CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM=8
+# CONFIG_LED_ACTIVE_HIGH=y   # descomente se seu LED for ativo-alto
