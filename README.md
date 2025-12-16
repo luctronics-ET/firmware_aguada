@@ -2,6 +2,99 @@
 
 Sistema de telemetria com sensores ultrassônicos ESP32-C3, gateway ESP32 DevKit V1, e backend PHP/MySQL.
 
+## 🏛️ Arquitetura da Rede Hídrica - CMASM
+
+### Definições do Sistema Predial
+
+**Sistema Predial**: Conjunto de equipamentos, infraestrutura, softwares e procedimentos que, instalados e configurados conforme as edificações, atuam de forma integrada para fornecer algum recurso ou produto. *Redes são necessárias para conectar os elementos do sistema.*
+
+**Exemplos**: Sistema elétrico, sistema hídrico, sistema de sensores, sistema de fonia.
+
+**Redes**: Divisão do sistema devido à qualidade/tipo do recurso fornecido.
+
+### Redes Hídricas do CMASM
+
+O CMASM possui 4 redes hídricas distintas:
+- 🚰 **Rede de Abastecimento**: Captação externa
+- 💧 **Rede de Consumo**: Água potável para uso geral
+- 🔥 **Rede de Incêndio**: Água não tratada para combate a incêndio
+- 🚽 **Rede de Esgoto**: Coleta e tratamento
+
+---
+
+### 📍 NODE-01: Castelo de Consumo (CON)
+**Local**: Castelo de Consumo  
+**Rede**: Consumo (água potável)  
+**Sensor**: ESP32-C3 node_ultra1
+
+**Elementos**:
+- **RCON**: Reservatório elevado de 80 ton para consumo
+- **VCON-IN1**: Válvula de entrada - recebe água das cisternas CIE1 e CIE2
+- **VCON-OUT1**: Válvula de saída AZ1 - envia água para Área Azul (edifícios administrativos)
+- **VCON-OUT2**: Válvula de saída AZ2 - envia água para Área Azul (baixadão)
+- **VCON-OUT3**: Válvula de saída AV - envia água para Área Vermelha (oficinas)
+
+---
+
+### 📍 NODE-02: Castelo de Incêndio (CAV)
+**Local**: Castelo de Incêndio  
+**Rede**: Incêndio (água não tratada)  
+**Sensor**: ESP32-C3 node_ultra2
+
+**Elementos**:
+- **RCAV**: Reservatório de 80 ton para rede de combate a incêndio
+- **VCAV-IN1**: Válvula de entrada VB03 - recebe água da Casa de Bombas N03
+- **VCAV-OUT1**: Válvula de saída - envia água para rede incêndio Área Azul (CAVAZ)
+- **VCAV-OUT2**: Válvula de saída - envia água para rede incêndio Área Vermelha (CAVAV)
+
+---
+
+### 📍 NODE-03: Casa de Bombas N03 (B03)
+**Local**: Casa de Bombas N03  
+**Rede**: Bombeamento  
+**Sensor**: *Planejado* (não instalado)
+
+**Elementos**:
+- **RB03**: Reservatório de 80 ton para bombeamento
+- **VB03-IN1**: Válvula de entrada VIE1 - recebe água das cisternas CIE1 e CIE2
+- **VB03-OUT1**: Válvula de saída VCAV - envia água para Castelo de Incêndio (CAV)
+- **VB03-OUT2**: Válvula de saída VCON - envia água para Castelo de Consumo (CON)
+
+---
+
+### 📍 NODE-04: Cisternas Ilha do Engenho (CIE)
+**Local**: Cisternas Ilha do Engenho  
+**Rede**: Captação/Armazenamento  
+**Sensores**: *Planejado* (2 sensores não instalados)
+
+**Elementos**:
+
+#### Cisterna CIE1 (Sensor 1 - planejado)
+- **CIE1**: Cisterna IE 01 - reservatório de 245 ton
+- **VCIE1-OUT1**: Válvula de saída VB03 - envia água para Casa de Bombas N03
+- **VCIE1-IN1**: Válvula de entrada 01 - recebe água das cisternas IF
+
+#### Cisterna CIE2 (Sensor 2 - planejado)
+- **CIE2**: Cisterna IE 02 - reservatório de 245 ton
+- **VCIE2-OUT1**: Válvula de saída VB03 - envia água para Casa de Bombas N03
+- **VCIE2-IN1**: Válvula de entrada 02 - recebe água das cisternas IF
+
+---
+
+### 📊 Status Atual da Instalação
+
+| Node | Local | Rede | Capacidade | Status Sensor |
+|------|-------|------|------------|---------------|
+| NODE-01 | CON - Castelo Consumo | Consumo | 80 ton | ✅ **Ativo** (ESP32-C3) |
+| NODE-02 | CAV - Castelo Incêndio | Incêndio | 80 ton | ✅ **Ativo** (ESP32-C3) |
+| NODE-03 | B03 - Casa Bombas | Bombeamento | 80 ton | ⚠️ Planejado |
+| NODE-04 | CIE1 - Cisterna 01 | Captação | 245 ton | ⚠️ Planejado |
+| NODE-04 | CIE2 - Cisterna 02 | Captação | 245 ton | ⚠️ Planejado |
+
+**Sensores ativos**: 2 de 5 planejados (NODE-01 e NODE-02)
+
+---
+
 ## 🎯 NOVO: Sistema de Balanço Hídrico v2.0
 
 **✅ Correção Fundamental Aplicada (15/12/2025)**
