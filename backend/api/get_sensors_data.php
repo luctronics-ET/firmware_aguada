@@ -35,8 +35,11 @@ $result = $conn->query($query);
 
 // Mapeamento de nodes para nomes reais
 $node_names = [
-    1 => 'Reservatório Ultra 01',
-    2 => 'Reservatório Ultra 02'
+    1 => 'CON' ,
+    2 => 'CAV',
+    3 => 'CB3',
+    4 => 'CIE',
+    5 => 'CO2'   //TESTE, REDUNDANCIA
 ];
 
 $node_capacities = [
