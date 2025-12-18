@@ -76,8 +76,8 @@ public:
     config.magic = CONFIG_MAGIC;
     config.version = CONFIG_VERSION;
     
-    // Network defaults
-    config.ip[0] = 192; config.ip[1] = 168; config.ip[2] = 0; config.ip[3] = 222;
+    // Network defaults (Node 10 - evita conflito com outros devices)
+    config.ip[0] = 192; config.ip[1] = 168; config.ip[2] = 0; config.ip[3] = 210;
     config.gateway[0] = 192; config.gateway[1] = 168; config.gateway[2] = 0; config.gateway[3] = 1;
     config.subnet[0] = 255; config.subnet[1] = 255; config.subnet[2] = 255; config.subnet[3] = 0;
     
@@ -85,11 +85,11 @@ public:
     config.backend_ip[0] = 192; config.backend_ip[1] = 168; config.backend_ip[2] = 0; config.backend_ip[3] = 117;
     config.backend_port = 8080;
     
-    // Sensor defaults
-    config.node_id = 3;
-    config.sensor_offset_cm = 20;
-    config.res_height_cm = 450;
-    config.res_volume_l = 80000;
+    // Sensor defaults (Node 10 - RCON Consumo, mesmo reservatório que Node 1)
+    config.node_id = 10;
+    config.sensor_offset_cm = 20;  // Igual ao Node 1
+    config.res_height_cm = 450;    // 80,000L reservoir
+    config.res_volume_l = 80000;   // Volume máximo
     
     // Timing defaults
     config.post_interval_ms = 30000; // 30s

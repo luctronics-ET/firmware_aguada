@@ -1,0 +1,6 @@
+{
+    "cmake.sourceDirectory": "/home/luciano/firmware_aguada/firmware/gateway_devkit_v1/main",
+    "idf.currentSetup": "/home/luciano/.espressif/v5.5.1/esp-idf",
+    "idf.port": "/dev/ttyACM0",
+    "idf.flashType": "JTAG"
+}

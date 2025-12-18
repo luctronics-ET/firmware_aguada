@@ -1,0 +1,10 @@
+menu "Node CIE Dual Options"
+
+config LED_ACTIVE_HIGH
+    bool "LED embutido ativo em nivel alto"
+    default n
+    help
+        Ajuste para 'y' se o LED onboard for ativo em nivel alto.
+        Por padrão, fica em nivel baixo (active-low) comum no ESP32-C3 Supermini.
+
+endmenu

@@ -15,6 +15,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include "esp_wifi.h"
 #include "esp_now.h"
@@ -25,6 +27,9 @@
 #include "esp_netif_ip_addr.h"
 #include "esp_http_client.h"
 #include "esp_event.h"
+#include "esp_sntp.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 #include "nvs_flash.h"
 #include "driver/gpio.h"
@@ -71,8 +76,22 @@ static bool led_state = false;
 static QueueHandle_t espnow_queue = NULL;
 static QueueHandle_t http_queue = NULL;
 static bool wifi_got_ip = false;
+static bool sntp_synced = false;
 static esp_event_handler_instance_t wifi_any_id_inst;
 static esp_event_handler_instance_t ip_got_ip_inst;
+
+// NVS Persistent Queue Configuration
+#define NVS_NAMESPACE "gw_queue"
+#define NVS_KEY_HEAD  "q_head"
+#define NVS_KEY_TAIL  "q_tail"
+#define NVS_KEY_COUNT "q_count"
+#define NVS_KEY_PKT   "pkt_%02d"  // Format: pkt_00 to pkt_49
+#define NVS_QUEUE_SIZE 50
+
+static nvs_handle_t nvs_queue_handle;
+static uint8_t queue_head = 0;
+static uint8_t queue_tail = 0;
+static uint8_t queue_count = 0;
 
 // Métricas simples
 static struct {
@@ -98,6 +117,111 @@ static void log_current_channel(void) {
     }
 }
 
+// SNTP time sync callback
+static void sntp_sync_time_cb(struct timeval *tv) {
+    sntp_synced = true;
+    time_t now = tv->tv_sec;
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    char strftime_buf[64];
+    strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    ESP_LOGI(TAG, "⏰ SNTP sincronizado: %s", strftime_buf);
+}
+
+// Get current UNIX timestamp (seconds since epoch)
+static uint32_t get_unix_timestamp(void) {
+    if (!sntp_synced) {
+        return 0; // Not synced yet
+    }
+    time_t now;
+    time(&now);
+    return (uint32_t)now;
+}
+
+// ============================================================================
+// NVS PERSISTENT QUEUE (stores packets when backend offline)
+// ============================================================================
+
+// Initialize NVS queue - load head/tail/count from flash
+static esp_err_t nvs_queue_init(void) {
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_queue_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Erro ao abrir NVS: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    // Load queue state (defaults to 0 if not found)
+    nvs_get_u8(nvs_queue_handle, NVS_KEY_HEAD, &queue_head);
+    nvs_get_u8(nvs_queue_handle, NVS_KEY_TAIL, &queue_tail);
+    nvs_get_u8(nvs_queue_handle, NVS_KEY_COUNT, &queue_count);
+    
+    ESP_LOGI(TAG, "📦 Fila NVS inicializada: %u pacotes pendentes (head=%u tail=%u)",
+             queue_count, queue_head, queue_tail);
+    return ESP_OK;
+}
+
+// Push packet to NVS queue (circular buffer)
+static esp_err_t nvs_queue_push(const SensorPacketV1 *pkt) {
+    if (queue_count >= NVS_QUEUE_SIZE) {
+        ESP_LOGW(TAG, "⚠️ Fila NVS cheia! Descartando pacote mais antigo");
+        // Advance head (drop oldest packet)
+        queue_head = (queue_head + 1) % NVS_QUEUE_SIZE;
+        queue_count--;
+    }
+    
+    // Write packet to NVS
+    char key[16];
+    snprintf(key, sizeof(key), NVS_KEY_PKT, queue_tail);
+    esp_err_t err = nvs_set_blob(nvs_queue_handle, key, pkt, sizeof(SensorPacketV1));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Erro ao salvar pacote na NVS: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    // Update tail and count
+    queue_tail = (queue_tail + 1) % NVS_QUEUE_SIZE;
+    queue_count++;
+    
+    // Persist queue metadata
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_HEAD, queue_head);
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_TAIL, queue_tail);
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_COUNT, queue_count);
+    nvs_commit(nvs_queue_handle);
+    
+    ESP_LOGI(TAG, "💾 Pacote salvo na NVS [%u/%u]", queue_count, NVS_QUEUE_SIZE);
+    return ESP_OK;
+}
+
+// Pop packet from NVS queue (FIFO)
+static esp_err_t nvs_queue_pop(SensorPacketV1 *pkt) {
+    if (queue_count == 0) {
+        return ESP_ERR_NOT_FOUND; // Queue empty
+    }
+    
+    // Read packet from NVS
+    char key[16];
+    snprintf(key, sizeof(key), NVS_KEY_PKT, queue_head);
+    size_t required_size = sizeof(SensorPacketV1);
+    esp_err_t err = nvs_get_blob(nvs_queue_handle, key, pkt, &required_size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Erro ao ler pacote da NVS: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    // Update head and count
+    queue_head = (queue_head + 1) % NVS_QUEUE_SIZE;
+    queue_count--;
+    
+    // Persist queue metadata
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_HEAD, queue_head);
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_TAIL, queue_tail);
+    nvs_set_u8(nvs_queue_handle, NVS_KEY_COUNT, queue_count);
+    nvs_commit(nvs_queue_handle);
+    
+    ESP_LOGI(TAG, "📤 Pacote recuperado da NVS [%u restantes]", queue_count);
+    return ESP_OK;
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_got_ip = false;
@@ -112,19 +236,37 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
         ip_event_got_ip_t *evt = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "WiFi IP: " IPSTR, IP2STR(&evt->ip_info.ip));
         log_current_channel();
+        
+        // Initialize SNTP for time synchronization
+        ESP_LOGI(TAG, "Inicializando SNTP...");
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, "pool.ntp.br");
+        esp_sntp_setservername(1, "a.st1.ntp.br");
+        esp_sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
+        sntp_set_time_sync_notification_cb(sntp_sync_time_cb);
+        
+        // Set timezone to Brazil (UTC-3)
+        setenv("TZ", "BRT3", 1);
+        tzset();
+        
+        esp_sntp_init();
+        ESP_LOGI(TAG, "SNTP iniciado (aguardando sincronização...)");
     }
 }
 
-static esp_err_t http_post_packet(const SensorPacketV1 *pkt) {
-    char json[256];
+static esp_err_t http_post_packet(const SensorPacketV1 *pkt, bool is_backlog) {
+    char json[350];
     int n = snprintf(json, sizeof(json),
         "{\"version\":%u,\"node_id\":%u,\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"seq\":%u,"
-        "\"distance_cm\":%d,\"level_cm\":%d,\"percentual\":%u,\"volume_l\":%u,\"vin_mv\":%d,\"rssi\":%d,\"ts_ms\":%u}",
+        "\"distance_cm\":%d,\"level_cm\":%d,\"percentual\":%u,\"volume_l\":%u,\"vin_mv\":%d,\"rssi\":%d,\"ts_ms\":%u,"
+        "\"flags\":%u,\"alert_type\":%u,\"is_backlog\":%s}",
         (unsigned)pkt->version, (unsigned)pkt->node_id,
         pkt->mac[0], pkt->mac[1], pkt->mac[2], pkt->mac[3], pkt->mac[4], pkt->mac[5],
         (unsigned)pkt->seq,
         (int)pkt->distance_cm, (int)pkt->level_cm, (unsigned)pkt->percentual, (unsigned)pkt->volume_l,
-        (int)pkt->vin_mv, (int)pkt->rssi, (unsigned)pkt->ts_ms);
+        (int)pkt->vin_mv, (int)pkt->rssi, (unsigned)pkt->ts_ms,
+        (unsigned)pkt->flags, (unsigned)pkt->alert_type,
+        is_backlog ? "true" : "false");
 
     if (n <= 0 || n >= (int)sizeof(json)) {
         ESP_LOGW(TAG, "json truncado (%d)", n);
@@ -151,7 +293,11 @@ static esp_err_t http_post_packet(const SensorPacketV1 *pkt) {
         ESP_LOGW(TAG, "HTTP post erro: %s", esp_err_to_name(err));
     } else {
         int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP status: %d", status);
+        if (is_backlog) {
+            ESP_LOGI(TAG, "📤 HTTP backlog status: %d", status);
+        } else {
+            ESP_LOGI(TAG, "HTTP status: %d", status);
+        }
     }
 
     esp_http_client_cleanup(client);
@@ -183,11 +329,53 @@ static void espnow_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *
     if (recv_info->rx_ctrl) {
         packet.data.rssi = recv_info->rx_ctrl->rssi;
     }
-    packet.data.ts_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+    // Use UNIX timestamp if SNTP is synced, otherwise use milliseconds since boot
+    uint32_t timestamp = get_unix_timestamp();
+    if (timestamp == 0) {
+        // Fallback to milliseconds since boot if SNTP not synced
+        timestamp = (uint32_t)(esp_timer_get_time() / 1000ULL);
+    }
+    packet.data.ts_ms = timestamp;
 
     gateway_metrics.packets_received++;
     
-    // Enqueue without blocking
+    // Auto-register node as peer if not already registered (for ACK response)
+    if (!esp_now_is_peer_exist(recv_info->src_addr)) {
+        esp_now_peer_info_t peer = {0};
+        memcpy(peer.peer_addr, recv_info->src_addr, 6);
+        peer.channel = 0;  // Use current channel
+        peer.ifidx = WIFI_IF_STA;
+        peer.encrypt = false;
+        
+        esp_err_t peer_err = esp_now_add_peer(&peer);
+        if (peer_err == ESP_OK) {
+            ESP_LOGI(TAG, "✓ Nó auto-registrado: %02X:%02X:%02X:%02X:%02X:%02X",
+                     recv_info->src_addr[0], recv_info->src_addr[1], recv_info->src_addr[2],
+                     recv_info->src_addr[3], recv_info->src_addr[4], recv_info->src_addr[5]);
+        }
+    }
+    
+    // Send ACK immediately (best effort, non-blocking)
+    AckPacket ack_pkt = {
+        .magic = ACK_MAGIC,
+        .version = ACK_VERSION,
+        .node_id = packet.data.node_id,
+        .ack_seq = packet.data.seq,
+        .rssi = packet.data.rssi,
+        .status = ACK_STATUS_OK,
+        .gateway_id = 0,  // TODO: Configure gateway ID
+        .reserved = 0
+    };
+    
+    // Send ACK without blocking (fire and forget)
+    esp_err_t ack_err = esp_now_send(recv_info->src_addr, (const uint8_t*)&ack_pkt, sizeof(ack_pkt));
+    if (ack_err == ESP_OK) {
+        ESP_LOGD(TAG, "✓ ACK enviado para seq=%u", ack_pkt.ack_seq);
+    } else {
+        ESP_LOGW(TAG, "✗ Falha ao enviar ACK: %s", esp_err_to_name(ack_err));
+    }
+    
+    // Enqueue for processing
     BaseType_t result = xQueueSendFromISR(espnow_queue, &packet, NULL);
     if (result != pdTRUE) {
         ESP_LOGW(TAG, "⚠ Queue cheia - pacote descartado");
@@ -216,6 +404,19 @@ static void packet_processing_task(void *pvParameters) {
             if (packet.data.version == SENSOR_PACKET_VERSION) {
                 gateway_metrics.packets_parsed++;
                 
+                // Check for anomaly alerts
+                bool is_alert = (packet.data.flags & FLAG_IS_ALERT) != 0;
+                const char* alert_names[] = {"NONE", "RAPID_DROP", "RAPID_RISE", "SENSOR_STUCK"};
+                
+                if (is_alert) {
+                    ESP_LOGW(TAG, "╔════════════════════════════════════════════════════╗");
+                    ESP_LOGW(TAG, "║          🚨 ALERTA DE ANOMALIA DETECTADO 🚨       ║");
+                    ESP_LOGW(TAG, "╠════════════════════════════════════════════════════╣");
+                    ESP_LOGW(TAG, "║ Tipo: %s", alert_names[packet.data.alert_type]);
+                    ESP_LOGW(TAG, "║ Nó ID: %u | Sequência: %u", packet.data.node_id, packet.data.seq);
+                    ESP_LOGW(TAG, "╚════════════════════════════════════════════════════╝");
+                }
+                
                 // Parse sensor data
                 ESP_LOGI(TAG, "║ Versão: %u", packet.data.version);
                 ESP_LOGI(TAG, "║ Nó ID: %u", packet.data.node_id);
@@ -226,11 +427,14 @@ static void packet_processing_task(void *pvParameters) {
                 ESP_LOGI(TAG, "║ Tensão: %d mV", packet.data.vin_mv);
                 ESP_LOGI(TAG, "║ RSSI: %d dBm", packet.data.rssi);
                 ESP_LOGI(TAG, "║ Sequência: %u", packet.data.seq);
+                if (is_alert) {
+                    ESP_LOGI(TAG, "║ 🚨 Alerta: %s", alert_names[packet.data.alert_type]);
+                }
                 
                 // Output JSON to Serial for external processing
-                printf("TELEMETRY:{\"mac\":\"%s\",\"distance\":%d,\"level\":%d,\"volume\":%" PRIu32 ",\"voltage\":%d,\"seq\":%" PRIu32 "}\n",
+                printf("TELEMETRY:{\"mac\":\"%s\",\"distance\":%d,\"level\":%d,\"volume\":%" PRIu32 ",\"voltage\":%d,\"seq\":%" PRIu32 ",\"alert\":%u}\n",
                        src_mac_str, packet.data.distance_cm, packet.data.level_cm, packet.data.volume_l, 
-                       packet.data.vin_mv, packet.data.seq);
+                       packet.data.vin_mv, packet.data.seq, packet.data.alert_type);
                 fflush(stdout);
 
                 // Enfileira para envio HTTP em worker dedicado
@@ -381,13 +585,44 @@ static void heartbeat_task(void *pvParameters) {
 
 static void http_worker_task(void *pvParameters) {
     SensorPacketV1 pkt;
+    
+    // First, try to send any backlog from previous boot
+    while (queue_count > 0) {
+        if (!wifi_got_ip) {
+            ESP_LOGW(TAG, "⏳ Aguardando IP para enviar backlog...");
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+        
+        if (nvs_queue_pop(&pkt) == ESP_OK) {
+            esp_err_t err = http_post_packet(&pkt, true);
+            if (err != ESP_OK) {
+                // Backend still offline, push back and wait
+                nvs_queue_push(&pkt);
+                ESP_LOGW(TAG, "⚠️ Backend offline - aguardando reconexão");
+                vTaskDelay(pdMS_TO_TICKS(10000));
+            } else {
+                ESP_LOGI(TAG, "✓ Pacote do backlog enviado com sucesso");
+            }
+        }
+    }
+    
+    ESP_LOGI(TAG, "✓ Backlog NVS vazio - processando telemetria em tempo real");
+    
+    // Now process real-time telemetry
     while (1) {
         if (xQueueReceive(http_queue, &pkt, portMAX_DELAY)) {
             if (!wifi_got_ip) {
-                ESP_LOGW(TAG, "Sem IP - não enviando HTTP");
+                ESP_LOGW(TAG, "⚠️ Sem IP - salvando na NVS");
+                nvs_queue_push(&pkt);
                 continue;
             }
-            http_post_packet(&pkt);
+            
+            esp_err_t err = http_post_packet(&pkt, false);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "⚠️ HTTP falhou - salvando na NVS");
+                nvs_queue_push(&pkt);
+            }
         }
     }
 }
@@ -404,6 +639,22 @@ void app_main(void) {
     ESP_LOGI(TAG, "║     Canal fixo 11 | STA + HTTP POST                      ║");
     ESP_LOGI(TAG, "╚═══════════════════════════════════════════════════════════╝");
     ESP_LOGI(TAG, "");
+
+    // Initialize NVS first
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS corrompida ou versão nova - apagando...");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_err);
+    ESP_LOGI(TAG, "✓ NVS Flash inicializada");
+    
+    // Initialize persistent queue
+    if (nvs_queue_init() != ESP_OK) {
+        ESP_LOGE(TAG, "❌ Falha ao inicializar fila persistente");
+        return;
+    }
 
     // Create packet queue
     espnow_queue = xQueueCreate(20, sizeof(espnow_packet_t));

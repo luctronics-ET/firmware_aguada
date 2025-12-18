@@ -1,0 +1,8 @@
+# Node CIE Dual - ESP32-C3 Configuration Overrides
+# Dual HC-SR04 sensors for CIE cistern (2 independent reservoirs)
+
+# Uncomment if LED is active-high
+# CONFIG_LED_ACTIVE_HIGH=y
+
+# Increase main task stack if needed for dual sensor processing
+# CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

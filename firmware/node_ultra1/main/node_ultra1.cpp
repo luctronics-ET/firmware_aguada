@@ -67,13 +67,23 @@ static const char *TAG = "node_ultra01";
 #define MIN_VALID_CM    5
 #define MAX_VALID_CM    450
 
+/* Anomaly detection thresholds */
+#define RAPID_CHANGE_THRESHOLD_CM  50   // 50cm change triggers alert
+#define NO_CHANGE_MINUTES          120  // 2 hours without change triggers sensor stuck alert
+#define NO_CHANGE_THRESHOLD_CM     2    // Within ±2cm considered "no change"
+
 /* ADC configuration */
 #define ADC_ATTEN        ADC_ATTEN_DB_12
 #define ADC_BITWIDTH     ADC_BITWIDTH_12
 
 /* ESP-NOW configuration */
-/* Gateway MAC address - must match the actual gateway device */
-static const uint8_t GATEWAY_MAC[6] = {0x80, 0xf3, 0xda, 0x62, 0xa7, 0x84};  // ESP32 DevKit V1
+/* Multiple gateway MAC addresses for redundancy/failover */
+#define MAX_GATEWAYS 3
+static const uint8_t GATEWAY_MACS[MAX_GATEWAYS][6] = {
+    {0x80, 0xf3, 0xda, 0x62, 0xa7, 0x84},  // Gateway 1 (ESP32 DevKit V1)
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},  // Gateway 2 (configure with real MAC)
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}   // Gateway 3 (configure with real MAC)
+};
 
 /* ESP-NOW channel - must match gateway */
 #define ESPNOW_CHANNEL 11
@@ -82,12 +92,30 @@ static const uint8_t GATEWAY_MAC[6] = {0x80, 0xf3, 0xda, 0x62, 0xa7, 0x84};  // 
 /* NVS keys */
 #define NVS_NAMESPACE "node_cfg"
 #define NVS_SEQ_KEY   "seq"
+#define NVS_LAST_GW_KEY "last_gw"  // Last successful gateway index
 
 // Use ultrasonic01 module instead of local implementation
 
 /* ADC handles (global) */
 static adc_oneshot_unit_handle_t adc1_handle = NULL;
 static adc_cali_handle_t adc1_cali_handle = NULL;
+
+/* ACK tracking */
+static volatile bool ack_received = false;
+static volatile uint32_t ack_seq_received = 0;
+static volatile uint8_t ack_gateway_id = 0xFF;
+
+/* Anomaly detection state (persistent across measurements) */
+static int16_t last_level_cm = -1;  // Previous water level
+static uint32_t last_change_seq = 0;  // Sequence when last level change detected
+static bool anomaly_detection_initialized = false;
+
+/* Transmission statistics */
+static struct {
+    uint32_t total_attempts;
+    uint32_t successful_acks;
+    uint32_t failed_acks;
+} tx_stats = {0, 0, 0};
 
 /* Read ADC and convert to mV, considering V/2 divider
    Returns integer mV value (vin_mv), or -1 on failure.
@@ -135,16 +163,115 @@ static esp_err_t nvs_set_seq(uint32_t seq) {
     return err;
 }
 
-/* ESP-NOW send wrapper (to gateway) */
-static esp_err_t espnow_send_payload(const uint8_t *peer_mac, const uint8_t *data, size_t len) {
-    esp_err_t err = ESP_FAIL;
-    const uint8_t *dst = peer_mac ? peer_mac : GATEWAY_MAC;
-    for (int r=0; r<ESPNOW_SEND_RETRIES; ++r) {
-        err = esp_now_send(dst, data, len);
-        if (err == ESP_OK) break;
-        vTaskDelay(pdMS_TO_TICKS(200));
+/* NVS helpers for last successful gateway */
+static uint8_t nvs_get_last_gateway(void) {
+    nvs_handle_t h;
+    uint8_t gw_idx = 0;  // Default to first gateway
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        nvs_get_u8(h, NVS_LAST_GW_KEY, &gw_idx);
+        nvs_close(h);
     }
-    return err;
+    // Validate index
+    if (gw_idx >= MAX_GATEWAYS) gw_idx = 0;
+    return gw_idx;
+}
+
+static void nvs_set_last_gateway(uint8_t gw_idx) {
+    if (gw_idx >= MAX_GATEWAYS) return;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        nvs_set_u8(h, NVS_LAST_GW_KEY, gw_idx);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+/* Check if gateway MAC is configured (not all 0xFF) */
+static bool is_gateway_valid(uint8_t gw_idx) {
+    if (gw_idx >= MAX_GATEWAYS) return false;
+    const uint8_t *mac = GATEWAY_MACS[gw_idx];
+    return !(mac[0] == 0xFF && mac[1] == 0xFF && mac[2] == 0xFF &&
+             mac[3] == 0xFF && mac[4] == 0xFF && mac[5] == 0xFF);
+}
+
+/* ESP-NOW send with automatic gateway failover and ACK wait */
+static esp_err_t espnow_send_payload(const uint8_t *data, size_t len, uint32_t expected_seq) {
+    tx_stats.total_attempts++;
+    
+    // Try last successful gateway first
+    uint8_t start_gw = nvs_get_last_gateway();
+    
+    // Round-robin through all configured gateways
+    for (uint8_t attempt = 0; attempt < MAX_GATEWAYS; attempt++) {
+        uint8_t gw_idx = (start_gw + attempt) % MAX_GATEWAYS;
+        
+        // Skip unconfigured gateways (0xFF:FF:FF:FF:FF:FF)
+        if (!is_gateway_valid(gw_idx)) {
+            continue;
+        }
+        
+        const uint8_t *gw_mac = GATEWAY_MACS[gw_idx];
+        ESP_LOGI(TAG, "Trying gateway %d: %02X:%02X:%02X:%02X:%02X:%02X",
+                 gw_idx, gw_mac[0], gw_mac[1], gw_mac[2], gw_mac[3], gw_mac[4], gw_mac[5]);
+        
+        // Retry sending to this gateway
+        for (int retry = 0; retry < ESPNOW_SEND_RETRIES; retry++) {
+            // Reset ACK flag
+            ack_received = false;
+            ack_seq_received = 0;
+            
+            esp_err_t err = esp_now_send(gw_mac, data, len);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "Gateway %d retry %d send failed: %s", gw_idx, retry, esp_err_to_name(err));
+                vTaskDelay(pdMS_TO_TICKS(100 * (1 << retry)));  // Exponential backoff
+                continue;
+            }
+            
+            // Wait for ACK with timeout
+            #define ACK_TIMEOUT_MS 500
+            int64_t start_time = esp_timer_get_time();
+            bool ack_ok = false;
+            
+            while ((esp_timer_get_time() - start_time) < (ACK_TIMEOUT_MS * 1000)) {
+                if (ack_received && ack_seq_received == expected_seq) {
+                    ack_ok = true;
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(10));  // Check every 10ms
+            }
+            
+            if (ack_ok) {
+                tx_stats.successful_acks++;
+                int success_rate = (tx_stats.successful_acks * 100) / tx_stats.total_attempts;
+                
+                ESP_LOGI(TAG, "✓ Sent successfully to gateway %d (retry %d) with ACK confirmation", gw_idx, retry);
+                ESP_LOGI(TAG, "📊 Stats: %u/%u successful (%.1f%% success rate)", 
+                         tx_stats.successful_acks, tx_stats.total_attempts, success_rate / 10.0);
+                
+                // Save this gateway as last successful
+                if (gw_idx != start_gw) {
+                    ESP_LOGI(TAG, "Gateway failover: %d -> %d", start_gw, gw_idx);
+                    nvs_set_last_gateway(gw_idx);
+                }
+                return ESP_OK;
+            } else {
+                ESP_LOGW(TAG, "Gateway %d retry %d: packet sent but no ACK received", gw_idx, retry);
+                vTaskDelay(pdMS_TO_TICKS(100 * (1 << retry)));  // Exponential backoff
+            }
+        }
+        
+        ESP_LOGE(TAG, "✗ Gateway %d failed after %d retries", gw_idx, ESPNOW_SEND_RETRIES);
+    }
+    
+    tx_stats.failed_acks++;
+    ESP_LOGE(TAG, "All gateways failed!");
+    ESP_LOGE(TAG, "📊 Stats: %u/%u successful (%.1f%% success rate)", 
+             tx_stats.successful_acks, tx_stats.total_attempts, 
+             (tx_stats.successful_acks * 100.0) / tx_stats.total_attempts);
+    
+    return ESP_FAIL;
 }
 
 /* ====== LED status helpers (non-blocking via esp_timer) ====== */
@@ -235,10 +362,26 @@ static void get_device_mac(uint8_t mac_out[6]) {
     esp_read_mac(mac_out, ESP_MAC_WIFI_STA);
 }
 
-/* ESP-NOW receive callback (not used but necessary to initialize) */
+/* ESP-NOW receive callback - handles ACK packets from gateway */
 static void espnow_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len) {
-    // for node we don't expect incoming but keep placeholder
-    ESP_LOGD(TAG, "espnow recv len=%d from " MACSTR, len, MAC2STR(recv_info->src_addr));
+    // Check if it's an ACK packet
+    if (len == sizeof(AckPacket)) {
+        AckPacket *ack = (AckPacket*)data;
+        
+        // Validate ACK
+        if (ack->magic == ACK_MAGIC && ack->version == ACK_VERSION) {
+            ack_received = true;
+            ack_seq_received = ack->ack_seq;
+            ack_gateway_id = ack->gateway_id;
+            
+            ESP_LOGI(TAG, "✓ ACK recebido: seq=%u, rssi=%d, gateway=%u, status=%u",
+                     ack->ack_seq, ack->rssi, ack->gateway_id, ack->status);
+        } else {
+            ESP_LOGW(TAG, "ACK inválido: magic=0x%02X, version=%u", ack->magic, ack->version);
+        }
+    } else {
+        ESP_LOGD(TAG, "espnow recv len=%d from " MACSTR, len, MAC2STR(recv_info->src_addr));
+    }
 }
 
 /* Initialize ADC */
@@ -334,20 +477,45 @@ static esp_err_t init_espnow(void) {
     }
     esp_now_register_recv_cb(espnow_recv_cb);
     
-    // Register gateway as peer for ESP-NOW send
-    esp_now_peer_info_t peer_info = {};
-    memcpy(peer_info.peer_addr, GATEWAY_MAC, 6);
-    peer_info.channel = ESPNOW_CHANNEL;
-    peer_info.ifidx = WIFI_IF_STA;
-    peer_info.encrypt = false;
-    err = esp_now_add_peer(&peer_info);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_now_add_peer failed: %s", esp_err_to_name(err));
-        return err;
+    // Register all configured gateways as peers
+    int peers_added = 0;
+    for (uint8_t i = 0; i < MAX_GATEWAYS; i++) {
+        if (!is_gateway_valid(i)) {
+            ESP_LOGW(TAG, "Gateway %d not configured (skipping)", i);
+            continue;
+        }
+        
+        esp_now_peer_info_t peer_info = {};
+        memcpy(peer_info.peer_addr, GATEWAY_MACS[i], 6);
+        peer_info.channel = ESPNOW_CHANNEL;
+        peer_info.ifidx = WIFI_IF_STA;
+        peer_info.encrypt = false;
+        
+        err = esp_now_add_peer(&peer_info);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to add gateway %d: %s", i, esp_err_to_name(err));
+            continue;
+        }
+        
+        ESP_LOGI(TAG, "Gateway %d peer added: %02X:%02X:%02X:%02X:%02X:%02X (channel %d)",
+                 i, GATEWAY_MACS[i][0], GATEWAY_MACS[i][1], GATEWAY_MACS[i][2],
+                 GATEWAY_MACS[i][3], GATEWAY_MACS[i][4], GATEWAY_MACS[i][5], ESPNOW_CHANNEL);
+        peers_added++;
     }
-    ESP_LOGI(TAG, "Gateway peer added: %02X:%02X:%02X:%02X:%02X:%02X (channel %d)",
-             GATEWAY_MAC[0], GATEWAY_MAC[1], GATEWAY_MAC[2],
-             GATEWAY_MAC[3], GATEWAY_MAC[4], GATEWAY_MAC[5], ESPNOW_CHANNEL);
+    
+    if (peers_added == 0) {
+        ESP_LOGE(TAG, "No gateways configured!");
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGI(TAG, "Total gateways configured: %d", peers_added);
+    uint8_t last_gw = nvs_get_last_gateway();
+    if (is_gateway_valid(last_gw)) {
+        ESP_LOGI(TAG, "Last successful gateway: %d (%02X:%02X:%02X:%02X:%02X:%02X)", 
+                 last_gw, GATEWAY_MACS[last_gw][0], GATEWAY_MACS[last_gw][1], 
+                 GATEWAY_MACS[last_gw][2], GATEWAY_MACS[last_gw][3],
+                 GATEWAY_MACS[last_gw][4], GATEWAY_MACS[last_gw][5]);
+    }
     
     return ESP_OK;
 }
@@ -373,6 +541,9 @@ extern "C" void app_main(void) {
     init_adc();
     led_init();  // Initialize LED GPIO
 
+    // Initialize Kalman filter for ultrasonic sensor (persistent across measurements)
+    static ultrasonic01::KalmanFilter kalman_filter(1.0f, 2.0f);  // process_noise=1, measurement_noise=2
+    
     // Indica inicialização / procurando gateway (rádio subindo)
     led_pattern_searching();
 
@@ -386,18 +557,23 @@ extern "C" void app_main(void) {
         if (nvs_get_seq(&seq) != ESP_OK) seq = 0;
         seq += 1; // increment for this send
 
-        // perform ultrasonic median of 3
+        // perform ultrasonic measurements with Kalman filtering
         int readings[ULTRA_SAMPLE_RETRIES];
         int valid_readings = 0;
         ultrasonic01::Pins pins{TRIG_GPIO, ECHO_GPIO};
+        
+        // Take multiple readings and apply Kalman filter
         for (int i=0;i<ULTRA_SAMPLE_RETRIES;i++) {
             int d = ultrasonic01::measure_cm(pins);
             if (d < 0) {
                 ESP_LOGW(TAG, "ultra read %d = timeout/error", i);
                 readings[i] = -1;
             } else {
-                readings[i] = d;
+                // Apply Kalman filter to raw measurement
+                float filtered = kalman_filter.update(d);
+                readings[i] = (int)(filtered + 0.5f);  // Round to nearest integer
                 valid_readings++;
+                ESP_LOGI(TAG, "Reading %d: raw=%dcm filtered=%dcm", i, d, readings[i]);
             }
             vTaskDelay(pdMS_TO_TICKS(ULTRA_MEASURE_DELAY_MS));
         }
@@ -406,6 +582,7 @@ extern "C" void app_main(void) {
         int distance_cm = -1;
         if (valid_readings == 0) {
             ESP_LOGW(TAG, "No valid ultrasonic readings");
+            kalman_filter.reset();  // Reset filter on total failure
         } else {
             int a = readings[0] < 0 ? 10000 : readings[0];
             int b = readings[1] < 0 ? 10000 : readings[1];
@@ -413,6 +590,7 @@ extern "C" void app_main(void) {
             int med = ultrasonic01::median3(a,b,c);
             if (med > 9999) {
                 distance_cm = -1;
+                kalman_filter.reset();
             } else {
                 distance_cm = med;
             }
@@ -442,12 +620,60 @@ extern "C" void app_main(void) {
         ESP_LOGI(TAG, "meas: distance=%d cm, level=%d cm, pct=%d%%, vol=%d L, vin=%d mV, seq=%u",
                  distance_cm, level_cm, percentual, volume_l, vin_mv, seq);
 
+        // ============================================================================
+        // ANOMALY DETECTION
+        // ============================================================================
+        uint8_t flags = 0;
+        uint8_t alert_type = ALERT_NONE;
+        
+        if (!anomaly_detection_initialized) {
+            // First measurement - just store baseline
+            last_level_cm = level_cm;
+            last_change_seq = seq;
+            anomaly_detection_initialized = true;
+            ESP_LOGI(TAG, "🎯 Anomaly detection initialized (baseline=%dcm)", level_cm);
+        } else {
+            int16_t delta_cm = level_cm - last_level_cm;
+            uint32_t readings_since_change = seq - last_change_seq;
+            uint32_t minutes_since_change = (readings_since_change * SAMPLE_INTERVAL_S) / 60;
+            
+            // Check for rapid drop (leak detection)
+            if (delta_cm <= -RAPID_CHANGE_THRESHOLD_CM) {
+                flags |= FLAG_IS_ALERT;
+                alert_type = ALERT_RAPID_DROP;
+                ESP_LOGW(TAG, "🚨 ALERTA: Queda rápida detectada! Δ=%dcm (possível vazamento)", delta_cm);
+            }
+            // Check for rapid rise (pump failure / flood)
+            else if (delta_cm >= RAPID_CHANGE_THRESHOLD_CM) {
+                flags |= FLAG_IS_ALERT;
+                alert_type = ALERT_RAPID_RISE;
+                ESP_LOGW(TAG, "🚨 ALERTA: Subida rápida detectada! Δ=%dcm (falha de bomba/inundação)", delta_cm);
+            }
+            // Check for sensor stuck (no significant change for long period)
+            else if (minutes_since_change >= NO_CHANGE_MINUTES && 
+                     abs(delta_cm) <= NO_CHANGE_THRESHOLD_CM) {
+                flags |= FLAG_IS_ALERT;
+                alert_type = ALERT_SENSOR_STUCK;
+                ESP_LOGW(TAG, "🚨 ALERTA: Sensor travado! Sem mudança por %u minutos", minutes_since_change);
+            }
+            
+            // Update baseline if significant change detected
+            if (abs(delta_cm) > NO_CHANGE_THRESHOLD_CM) {
+                last_level_cm = level_cm;
+                last_change_seq = seq;
+            }
+            
+            if (flags & FLAG_IS_ALERT) {
+                ESP_LOGI(TAG, "⚠️ Pacote marcado como alerta (tipo=%u)", alert_type);
+            }
+        }
+
         // build payload (binary packet)
         uint8_t dev_mac[6];
         get_device_mac(dev_mac);
         SensorPacketV1 pkt{};
         pkt.version = SENSOR_PACKET_VERSION;
-        pkt.node_id = 1; // Node Ultra01
+        pkt.node_id = 3; // Node 3 - RCB3 - Casa de Bombas 03
         memcpy(pkt.mac, dev_mac, sizeof(pkt.mac));
         pkt.seq = seq;
         pkt.distance_cm = (int16_t)distance_cm;
@@ -455,12 +681,14 @@ extern "C" void app_main(void) {
         pkt.percentual = (uint8_t)percentual;
         pkt.volume_l = (uint32_t)volume_l;
         pkt.vin_mv = (int16_t)vin_mv;
+        pkt.flags = flags;
+        pkt.alert_type = alert_type;
         pkt.rssi = 0;   // gateway will overwrite
         pkt.ts_ms = 0;  // gateway will overwrite
 
-        esp_err_t send_err = espnow_send_payload(NULL, (const uint8_t*)&pkt, sizeof(pkt));
+        esp_err_t send_err = espnow_send_payload((const uint8_t*)&pkt, sizeof(pkt), seq);
         if (send_err == ESP_OK) {
-            ESP_LOGI(TAG, "espnow send OK (binary packet v%d)", pkt.version);
+            ESP_LOGI(TAG, "espnow send OK (binary packet v%d) with ACK", pkt.version);
             nvs_set_seq(seq);
             led_pattern_tx();
         } else {
