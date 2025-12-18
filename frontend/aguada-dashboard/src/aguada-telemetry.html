@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Aguada Telemetry - Dashboard de Monitoramento</title>
+  </head>
+  <body
+    x-data="aguadaApp()"
+    x-init="init()"
+    :class="{'dark bg-gray-900': darkMode === true}"
+  >
+    <!-- ===== Preloader Start ===== -->
+    <include src="./partials/preloader.html"></include>
+    <!-- ===== Preloader End ===== -->
+
+    <!-- ===== Page Wrapper Start ===== -->
+    <div class="flex h-screen overflow-hidden">
+      <!-- ===== Sidebar Start ===== -->
+      <include src="./partials/sidebar.html"></include>
+      <!-- ===== Sidebar End ===== -->
+
+      <!-- ===== Content Area Start ===== -->
+      <div
+        class="relative flex flex-col flex-1 overflow-x-hidden overflow-y-auto"
+      >
+        <!-- Small Device Overlay Start -->
+        <include src="./partials/overlay.html" />
+        <!-- Small Device Overlay End -->
+
+        <!-- ===== Header Start ===== -->
+        <include src="./partials/header.html" />
+        <!-- ===== Header End ===== -->
+
+        <!-- ===== Main Content Start ===== -->
+        <main>
+          <div class="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
+            <!-- System Status Header -->
+            <div class="mb-6">
+              <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                Sistema de Telemetria - Aguada
+              </h1>
+              <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Monitoramento em tempo real dos sensores de nível
+              </p>
+            </div>
+
+            <!-- Nodes Status Grid -->
+            <div class="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <template x-for="node in nodes" :key="node.node_id">
+                <div class="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
+                  <!-- Node Header -->
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold" x-text="node.name"></h3>
+                    <span 
+                      class="px-2 py-1 text-xs font-medium rounded"
+                      :class="node.online ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'"
+                      x-text="node.online ? 'Online' : 'Offline'"
+                    ></span>
+                  </div>
+
+                  <!-- Level Indicator -->
+                  <div class="mb-4">
+                    <div class="flex items-baseline justify-between mb-2">
+                      <span class="text-2xl font-bold" x-text="node.percentual + '%'"></span>
+                      <span class="text-sm text-gray-600 dark:text-gray-400" x-text="formatVolume(node.volume_l)"></span>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="w-full h-3 bg-gray-200 rounded-full dark:bg-gray-700">
+                      <div 
+                        class="h-3 rounded-full transition-all duration-500"
+                        :class="getLevelColor(node.percentual)"
+                        :style="`width: ${node.percentual}%`"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <!-- Details Grid -->
+                  <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span class="text-gray-600 dark:text-gray-400">Nível:</span>
+                      <span class="ml-1 font-medium" x-text="node.level_cm + ' cm'"></span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600 dark:text-gray-400">Distância:</span>
+                      <span class="ml-1 font-medium" x-text="node.distance_cm + ' cm'"></span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600 dark:text-gray-400">RSSI:</span>
+                      <span class="ml-1 font-medium" x-text="node.rssi + ' dBm'"></span>
+                    </div>
+                    <div>
+                      <span class="text-gray-600 dark:text-gray-400">Node ID:</span>
+                      <span class="ml-1 font-medium" x-text="node.node_id"></span>
+                    </div>
+                  </div>
+
+                  <!-- Last Update -->
+                  <div class="pt-3 mt-3 text-xs text-gray-500 border-t dark:text-gray-400 dark:border-gray-700">
+                    <span x-text="'Última atualização: ' + formatTimestamp(node.last_update)"></span>
+                  </div>
+
+                  <!-- Alert Badge (if exists) -->
+                  <template x-if="node.flags > 0">
+                    <div class="px-2 py-1 mt-3 text-xs font-medium text-yellow-800 bg-yellow-100 rounded dark:bg-yellow-900 dark:text-yellow-200">
+                      ⚠️ <span x-text="getAlertMessage(node.alert_type)"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
+              <!-- Level History Chart -->
+              <div class="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
+                <h3 class="mb-4 text-xl font-semibold">Histórico de Níveis (24h)</h3>
+                <div id="levelChart" style="min-height: 300px;"></div>
+              </div>
+
+              <!-- Volume Distribution Chart -->
+              <div class="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
+                <h3 class="mb-4 text-xl font-semibold">Distribuição de Volume</h3>
+                <div id="volumeChart" style="min-height: 300px;"></div>
+              </div>
+            </div>
+
+            <!-- Recent Readings Table -->
+            <div class="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
+              <h3 class="mb-4 text-xl font-semibold">Leituras Recentes</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full table-auto">
+                  <thead class="text-left bg-gray-100 dark:bg-gray-700">
+                    <tr>
+                      <th class="px-4 py-3 text-sm font-semibold">Node</th>
+                      <th class="px-4 py-3 text-sm font-semibold">Timestamp</th>
+                      <th class="px-4 py-3 text-sm font-semibold">Distância</th>
+                      <th class="px-4 py-3 text-sm font-semibold">Nível</th>
+                      <th class="px-4 py-3 text-sm font-semibold">Percentual</th>
+                      <th class="px-4 py-3 text-sm font-semibold">Volume</th>
+                      <th class="px-4 py-3 text-sm font-semibold">RSSI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="reading in recentReadings" :key="reading.id">
+                      <tr class="border-b dark:border-gray-700">
+                        <td class="px-4 py-3 text-sm font-medium" x-text="reading.node_id"></td>
+                        <td class="px-4 py-3 text-sm" x-text="formatTimestamp(reading.created_at)"></td>
+                        <td class="px-4 py-3 text-sm" x-text="reading.distance_cm + ' cm'"></td>
+                        <td class="px-4 py-3 text-sm" x-text="reading.level_cm + ' cm'"></td>
+                        <td class="px-4 py-3 text-sm">
+                          <span 
+                            class="px-2 py-1 text-xs font-medium rounded"
+                            :class="getLevelColor(reading.percentual)"
+                            x-text="reading.percentual + '%'"
+                          ></span>
+                        </td>
+                        <td class="px-4 py-3 text-sm" x-text="formatVolume(reading.volume_l)"></td>
+                        <td class="px-4 py-3 text-sm" x-text="reading.rssi + ' dBm'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </main>
+        <!-- ===== Main Content End ===== -->
+      </div>
+      <!-- ===== Content Area End ===== -->
+    </div>
+    <!-- ===== Page Wrapper End ===== -->
+
+    <script>
+      function aguadaApp() {
+        return {
+          darkMode: false,
+          loaded: true,
+          stickyMenu: false,
+          sidebarToggle: false,
+          scrollTop: false,
+          nodes: [],
+          recentReadings: [],
+          apiBaseUrl: 'http://192.168.0.117:8080/api',
+          
+          init() {
+            this.darkMode = JSON.parse(localStorage.getItem('darkMode') || 'false');
+            this.$watch('darkMode', value => localStorage.setItem('darkMode', JSON.stringify(value)));
+            
+            this.fetchData();
+            setInterval(() => this.fetchData(), 5000); // Atualiza a cada 5 segundos
+          },
+          
+          async fetchData() {
+            try {
+              // Buscar dados dos sensores
+              const sensorsResponse = await fetch(`${this.apiBaseUrl}/get_sensors_data.php`);
+              const sensorsData = await sensorsResponse.json();
+              
+              if (sensorsData.status === 'success') {
+                this.nodes = sensorsData.sensors.map(sensor => ({
+                  ...sensor,
+                  online: this.isOnline(sensor.last_update)
+                }));
+              }
+              
+              // Buscar leituras recentes
+              const readingsResponse = await fetch(`${this.apiBaseUrl}/get_recent_readings.php?limit=20`);
+              const readingsData = await readingsResponse.json();
+              
+              if (readingsData.status === 'success') {
+                this.recentReadings = readingsData.readings;
+              }
+              
+              // Atualizar gráficos
+              this.updateCharts();
+            } catch (error) {
+              console.error('Erro ao buscar dados:', error);
+            }
+          },
+          
+          isOnline(timestamp) {
+            const lastUpdate = new Date(timestamp);
+            const now = new Date();
+            const diffMinutes = (now - lastUpdate) / 1000 / 60;
+            return diffMinutes < 3; // Considera online se atualizou nos últimos 3 minutos
+          },
+          
+          getLevelColor(percentual) {
+            if (percentual >= 75) return 'bg-green-500 text-white';
+            if (percentual >= 50) return 'bg-blue-500 text-white';
+            if (percentual >= 25) return 'bg-yellow-500 text-white';
+            return 'bg-red-500 text-white';
+          },
+          
+          formatVolume(volumeL) {
+            if (volumeL >= 1000) {
+              return (volumeL / 1000).toFixed(1) + ' m³';
+            }
+            return volumeL + ' L';
+          },
+          
+          formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            });
+          },
+          
+          getAlertMessage(alertType) {
+            const alerts = {
+              0: 'Nenhum alerta',
+              1: 'Queda rápida detectada',
+              2: 'Subida rápida detectada',
+              3: 'Sensor travado'
+            };
+            return alerts[alertType] || 'Alerta desconhecido';
+          },
+          
+          updateCharts() {
+            // Implementar atualização dos gráficos ApexCharts
+            // Este método será expandido com os gráficos reais
+          }
+        };
+      }
+    </script>
+  </body>
+</html>

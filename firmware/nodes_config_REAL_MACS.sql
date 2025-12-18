@@ -86,7 +86,7 @@ INSERT INTO node_configs (node_id, name, description, mac_address,
                          vol_max_l, location, active, installed_at)
 VALUES (
     4,
-    'CIE1 - Cisternas Ilha do Engenho 01',
+    'CIE1 - Cisterna Ilha do Engenho N1',
     'Cisterna Ilha do Engenho N1 (245.000L)',
     'DC:B4:D9:8B:9E:AC',  -- MAC REAL extraído (físico node_cie_dual)
     'HC-SR04',
@@ -110,8 +110,8 @@ INSERT INTO node_configs (node_id, name, description, mac_address,
                          vol_max_l, location, active, installed_at)
 VALUES (
     5,
-    'CIE2 - Reservatório Superior',
-    'Centro de Informações Estratégicas - Reservatório Superior (245.000L)',
+    'CIE2 - Cisterna Ilha do Engenho N2 (245.000L)',
+    'Cisterna Ilha do Engenho N2 (245.000L)',
     'DC:B4:D9:8B:9E:AC',  -- MESMO MAC (dual sensor, NODE_ID diferente)
     'HC-SR04',
     20,
@@ -123,7 +123,7 @@ VALUES (
 )
 ON DUPLICATE KEY UPDATE
     mac_address = 'DC:B4:D9:8B:9E:AC',
-    description = 'Centro de Informações Estratégicas - Reservatório Superior (245.000L)',
+    description = 'Cisterna Ilha do Engenho N2 (245.000L)',
     level_max_cm = 1200,
     vol_max_l = 245000,
     updated_at = NOW();

@@ -269,7 +269,99 @@ firmware_aguada/firmware/
 └── README.md
 ```
 
-## 13. PRÓXIMOS PASSOS
+## 13. FRONTEND - DASHBOARD WEB
+
+### Tecnologia
+- **Template**: TailAdmin (Tailwind CSS + Alpine.js + ApexCharts)
+- **Localização**: `frontend/aguada-dashboard/`
+- **Build**: Webpack 5
+- **Deploy**: Static site ou integrado com backend PHP
+
+### Endpoints da API
+
+O dashboard consome 3 endpoints principais:
+
+#### 1. GET /api/get_sensors_data.php
+Status atual de todos os sensores (última leitura por node).
+
+**Response:**
+```json
+{
+  "status": "success",
+  "sensors": [{
+    "node_id": 1,
+    "name": "RCON",
+    "mac": "20:6E:F1:6B:77:58",
+    "distance_cm": 72,
+    "level_cm": 398,
+    "percentual": 88,
+    "volume_l": 70755,
+    "capacity": 80000,
+    "rssi": -45,
+    "last_update": "2025-12-18 08:30:45",
+    "flags": 0,
+    "alert_type": 0
+  }]
+}
+```
+
+#### 2. GET /api/get_recent_readings.php
+Leituras recentes (últimas N entradas).
+
+**Parameters:**
+- `limit` (opcional, default: 50)
+- `node_id` (opcional, filtrar por node)
+
+#### 3. GET /api/get_history.php
+Histórico agregado por minuto (médias).
+
+**Parameters:**
+- `hours` (opcional, default: 24)
+- `node_id` (opcional)
+
+### Features do Dashboard
+
+- **Cards de Status**: Um card por node com:
+  - Nome do reservatório
+  - Status online/offline (threshold 3 min)
+  - Progress bar com cores (verde/azul/amarelo/vermelho)
+  - Volume atual vs capacidade
+  - RSSI, distância, nível
+  - Badges de alerta
+
+- **Gráficos**:
+  - Histórico de níveis (24h)
+  - Distribuição de volume
+  - Qualidade de sinal (RSSI)
+
+- **Tabela de Leituras**: Últimas 20 leituras com todos os campos
+
+- **Auto-Refresh**: Atualização a cada 5 segundos
+
+### Setup
+
+```bash
+cd frontend/aguada-dashboard
+npm install
+npm start          # Dev server http://localhost:8080
+npm run build      # Build para produção
+```
+
+### Integração com Firmware
+
+100% compatível com `SensorPacketV1`. Backend converte binary → JSON.
+
+Mapeamento de nodes:
+| ID | Nome | MAC | Capacidade |
+|----|------|-----|------------|
+| 1 | RCON | 20:6E:F1:6B:77:58 | 80,000L |
+| 2 | RCAV | DC:06:75:67:6A:CC | 80,000L |
+| 3 | RCB3 | 80:F1:B2:50:31:34 | 80,000L |
+| 4 | CIE1 | DC:B4:D9:8B:9E:AC | 245,000L |
+| 5 | CIE2 | DC:B4:D9:8B:9E:AC | 245,000L |
+| 10 | RCON-ETH | AA:BB:CC:DD:EE:01 | 80,000L |
+
+## 14. PRÓXIMOS PASSOS
 
 ### Hardware
 - [ ] Conectar HC-SR04 nos nodes 1, 2, 3, 10
@@ -281,20 +373,34 @@ firmware_aguada/firmware/
 - [ ] Iniciar backend: ./start_services.sh
 - [ ] Verificar ingestion: SELECT * FROM telemetry_processed;
 
+### Frontend
+- [x] Copiar TailAdmin para frontend/aguada-dashboard
+- [x] Criar aguada-telemetry.html (dashboard principal)
+- [x] Criar APIs: get_sensors_data.php, get_recent_readings.php, get_history.php
+- [x] Mapear todos os 6 nodes (1-5 + 10)
+- [ ] Implementar gráficos ApexCharts completos
+- [ ] Adicionar WebSocket para updates em tempo real
+- [ ] Testar dashboard com dados reais
+- [ ] Deploy para produção
+
 ### Testes
 - [ ] Validar medições contra régua física
 - [ ] Testar alertas (simular vazamento)
 - [ ] Validar redundância Node 1 vs Node 10
 - [ ] Stress test: gateway com 50 pacotes NVS
+- [ ] Testar dashboard em diferentes resoluções
 
 ### Otimizações
 - [ ] Ajustar filtro Kalman se leituras ruidosas
 - [ ] Tunar thresholds de anomalias
-- [ ] Implementar dashboard web
+- [ ] Implementar autenticação no dashboard
 - [ ] Adicionar notificações (email/Telegram)
+- [ ] Criar sistema de balanço hídrico completo
+- [ ] Mobile app (PWA)
 
 ---
 
 **Última atualização**: 18 de dezembro de 2025
 **Versão do protocolo**: SensorPacketV1
 **Firmware compilado e testado**: ✅ Todos os nodes + gateway + nano
+**Frontend**: ✅ TailAdmin integrado com backend
