@@ -2,15 +2,28 @@
 require_once __DIR__ . '/config.php';
 $mysqli = db_connect();
 
-// Sensor mapping
-$sensors = [
-    1 => ['alias' => 'CON', 'desc' => 'Consumo', 'icon' => '🏊'],
-    2 => ['alias' => 'RCAV', 'desc' => 'Cavalete', 'icon' => '💧'],
-    3 => ['alias' => 'RCON', 'desc' => 'Consumo Int.', 'icon' => '🌊'],
-    4 => ['alias' => 'RABD', 'desc' => 'Abdominal', 'icon' => '💦'],
-    5 => ['alias' => 'RBOM', 'desc' => 'Bomba', 'icon' => '⚙️'],
-    6 => ['alias' => 'RAUX', 'desc' => 'Auxiliar', 'icon' => '🚰'],
-];
+// Load sensors dynamically from database
+$sensors = [];
+$sensor_query = $mysqli->query("
+    SELECT s.node_id, s.alias, e.nome as descricao, e.capacidade_l 
+    FROM sensores s 
+    LEFT JOIN elementos e ON s.elemento_id = e.id 
+    ORDER BY s.node_id
+");
+
+if ($sensor_query) {
+    while ($s = $sensor_query->fetch_assoc()) {
+        $icons = ['🏊', '💧', '🌊', '💦', '⚙️', '🚰']; // Icon rotation
+        $icon_index = ($s['node_id'] - 1) % count($icons);
+        
+        $sensors[$s['node_id']] = [
+            'alias' => $s['alias'],
+            'desc' => $s['descricao'],
+            'icon' => $icons[$icon_index],
+            'capacity' => (int)$s['capacidade_l']
+        ];
+    }
+}
 
 $result = $mysqli->query('SELECT * FROM leituras_v2 ORDER BY created_at DESC LIMIT 50');
 $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -193,9 +206,12 @@ function battery_status($mv) {
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3 2xl:gap-7.5 mb-6">
                         <?php foreach ($summary as $nid => $readings):
                             $latest_r = $readings[0];
-                            $sensor = $sensors[$nid] ?? ['alias' => "N$nid", 'desc' => 'Sensor', 'icon' => '📊'];
+                            $sensor = $sensors[$nid] ?? ['alias' => "N$nid", 'desc' => 'Sensor', 'icon' => '📊', 'capacity' => 0];
                             $pct = (int)$latest_r['percentual'];
                             $volume = (int)$latest_r['volume_l'];
+                            $volume_m3 = round($volume / 1000, 1); // Convert liters to m³
+                            $capacity = $sensor['capacity'];
+                            $capacity_m3 = round($capacity / 1000, 1);
                             $level = (int)$latest_r['level_cm'];
                             $sig = signal_quality((int)$latest_r['rssi']);
                             $bat = battery_status((int)$latest_r['vin_mv']);
@@ -219,8 +235,9 @@ function battery_status($mv) {
                                 <p class="text-xs text-gray-500 dark:text-gray-400"><?php echo htmlspecialchars($sensor['desc']); ?></p>
                                 
                                 <div class="mt-3 flex items-baseline gap-2">
-                                    <span class="text-2xl font-bold text-gray-800 dark:text-white"><?php echo number_format($volume, 0, ',', '.'); ?></span>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">L</span>
+                                    <span class="text-2xl font-bold text-gray-800 dark:text-white"><?php echo $volume_m3; ?></span>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">m³</span>
+                                    <span class="text-xs text-gray-400 dark:text-gray-500">/ <?php echo $capacity_m3; ?> m³</span>
                                 </div>
                                 
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Nível: <?php echo $level; ?> cm</p>
